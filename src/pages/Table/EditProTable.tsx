@@ -1,0 +1,237 @@
+import React, {JSX, useState} from 'react';
+import { Table, Input, Button, Popconfirm, message, Select } from 'antd';
+import { ColumnsType } from 'antd/es/table';
+import './index.less';
+
+// 定义下拉选项类型
+interface SelectOption {
+    value: string | number;
+    label: string;
+}
+
+// 定义列的类型
+export interface Column {
+    key: string;
+    title: string;
+    type?: 'text' | 'number' | 'email' | 'select';
+    required?: boolean;
+    editable?: boolean;
+    defaultValue?: string | number;
+    options?: SelectOption[];
+}
+
+// 定义验证规则
+interface ValidationRule {
+    required?: boolean;
+    min?: number;
+}
+
+// 定义组件的 Props 类型，使用泛型
+export interface EditableTableProps<TData extends Record<string, string | number>> {
+    columns: Column[];
+    data: TData[];
+    rowKey?: keyof TData | ((record: TData) => string);
+    onSave: (updatedData: TData[]) => void;
+    onDelete?: (index: number) => void;
+    onAdd?: (newData: TData[]) => void;
+    enableAdd?: boolean;
+    enableDelete?: boolean;
+    autoSave?: boolean;
+    validation?: Record<string, ValidationRule>;
+}
+
+// 使用 React.FC 声明泛型组件
+const EditableTable = <TData extends Record<string, string | number>>({
+                                                                          columns,
+                                                                          data,
+                                                                          rowKey = 'id',
+                                                                          onSave,
+                                                                          onDelete,
+                                                                          onAdd,
+                                                                          enableAdd = true,
+                                                                          enableDelete = true,
+                                                                          autoSave = true,
+                                                                          validation = {},
+                                                                      }: EditableTableProps<TData>): JSX.Element => {
+    const [tableData, setTableData] = useState<TData[]>(data);
+    const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number }>({
+        rowIndex: -1,
+        colIndex: -1,
+    });
+    const [tempValue, setTempValue] = useState<string | number>('');
+
+    // 处理单元格点击编辑
+    const handleCellClick = (rowIndex: number, colIndex: number, value: string | number) => {
+        if (!columns[colIndex].editable) return;
+        setEditingCell({ rowIndex, colIndex });
+        setTempValue(value);
+    };
+
+    // 处理输入变化
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        const col = columns[editingCell.colIndex];
+        setTempValue(col?.type === 'number' ? (value === '' ? '' : Number(value)) : value);
+    };
+
+    // 处理下拉选择变化
+    const handleSelectChange = (value: string | number) => {
+        setTempValue(value);
+    };
+
+    // 处理保存
+    const handleSave = async (rowIndex: number, colIndex: number) => {
+        const newValue = tempValue;
+        const col = columns[colIndex];
+        const key = col.key;
+
+        if (col.required) {
+            if (typeof newValue === 'string' && !newValue.trim()) {
+                await message.error(`${col.title}不能为空`);
+                return;
+            }
+            if (typeof newValue === 'number' && isNaN(newValue)) {
+                await message.error(`${col.title}必须是有效的数字`);
+                return;
+            }
+        }
+
+        if (validation[key]?.min && typeof newValue === 'string' && newValue.length < validation[key].min) {
+            await message.error(`${col.title}长度至少${validation[key].min}位`);
+            return;
+        }
+        if (validation[key]?.min && typeof newValue === 'number' && newValue < validation[key].min) {
+            await message.error(`${col.title}值必须大于或等于${validation[key].min}`);
+            return;
+        }
+
+        if (col.type === 'select' && col.options && !col.options.some(opt => opt.value === newValue)) {
+            await message.error(`${col.title}必须选择有效选项`);
+            return;
+        }
+
+        const newData= [...tableData] ;
+        newData[rowIndex][key] = newValue;
+        setTableData(newData);
+        if (autoSave) onSave(newData);
+
+        setEditingCell({ rowIndex: -1, colIndex: -1 });
+    };
+
+    // 新增行
+    const handleAddRow = () => {
+        const newRow: TData= { id: (tableData.length + 1).toString() } as TData;
+        columns.forEach(col => {
+            newRow[col.key] = col.defaultValue !== undefined ? col.defaultValue : col.type === 'select' ? '' : '';
+        });
+        const newData = [...tableData, newRow];
+        setTableData(newData);
+        onAdd?.(newData);
+    };
+
+    // 删除行
+    const handleDeleteRow = (rowIndex: number) => {
+        const newData = tableData.filter((_, index) => index !== rowIndex);
+        setTableData(newData);
+        onDelete?.(rowIndex);
+        onSave(newData);
+    };
+
+    // 表格列配置
+    const tableColumns: ColumnsType<TData> = [
+        // colIndex是对应列
+        ...columns.map((col, colIndex) => ({
+            title: col.title,
+            dataIndex: col.key,
+            key: col.key,
+            render: (value: string | number, record: TData, rowIndex: number) => {
+                // rowIndex是对应data里面的行 record是这一行的值
+                const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
+                if (col.type === 'select') {
+                    return isEditing ? (
+                        <Select
+                            value={tempValue}
+                            onChange={handleSelectChange}
+                            onBlur={() => handleSave(rowIndex, colIndex)}
+                            style={{ width: '100%' }}
+                            autoFocus
+                            className="editable-input"
+                        >
+                            {col.options?.map(option => (
+                                <Select.Option key={option.value} value={option.value}>
+                                    {option.label}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    ) : (
+                        <span
+                            onClick={() => handleCellClick(rowIndex, colIndex, value)}
+                            className={col.editable ? 'editable-cell' : ''}
+                        >
+              {(col.options?.find(opt => opt.value === value)?.label || value) || '--'}
+            </span>
+                    );
+                }
+                return isEditing ? (
+                    <Input
+                        type={col.type || 'text'}
+                        value={tempValue}
+                        onChange={handleInputChange}
+                        onBlur={() => handleSave(rowIndex, colIndex)}
+                        onPressEnter={() => handleSave(rowIndex, colIndex)}
+                        autoFocus
+                        className="editable-input"
+                    />
+                ) : (
+                    <span
+                        onClick={() => handleCellClick(rowIndex, colIndex, value)}
+                        className={col.editable ? 'editable-cell' : ''}
+                    >
+            {value || '--'}
+          </span>
+                );
+            },
+        })),
+        ...(enableDelete
+            ? [
+                {
+                    title: '操作',
+                    key: 'action',
+                    render: (_: any, __: TData, rowIndex: number) => (
+                        <Popconfirm
+                            title="确认删除此行？"
+                            onConfirm={() => handleDeleteRow(rowIndex)}
+                            okText="确定"
+                            cancelText="取消"
+                        >
+                            <Button type="link">删除</Button>
+                        </Popconfirm>
+                    ),
+                },
+            ]
+            : []),
+    ];
+
+    return (
+        <div className="editable-table">
+            <Table
+                columns={tableColumns}
+                dataSource={tableData}
+                rowKey={rowKey}
+                pagination={{ pageSize: 10 }}
+            />
+            {enableAdd && (
+                <div className="table-actions">
+                    <Button type="primary" onClick={handleAddRow}>
+                        新增行
+                    </Button>
+                    <Button onClick={() => onSave(tableData)} style={{ marginLeft: 8 }}>
+                        保存全部
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default EditableTable;
