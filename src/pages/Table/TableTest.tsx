@@ -32,7 +32,7 @@ const TableTest: React.FC = () => {
     };
 
     const columns: Column[] = [
-        { key: 'name', title: '姓名', type: 'text', required: true, editable: true, defaultValue: '', width: 150 }, // 设置列宽
+        { key: 'name', title: '姓名', type: 'text', required: true, editable: true, defaultValue: '', width: 150, fixed: "left"}, // 设置列宽
         { key: 'age', title: '年龄', type: 'number', required: true, editable: true, defaultValue: 0, width: 100 },
         { key: 'email', title: '邮箱', type: 'email', editable: true, defaultValue: '', width: 200 },
         { key: 'job', title: '职业', type: 'select', editable: true, defaultValue: '', options: [{ label: 'react', value: '1' }, { label: 'vue', value: '2' }], width: 120 },

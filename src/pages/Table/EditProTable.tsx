@@ -21,6 +21,7 @@ export interface Column {
     options?: SelectOption[];
     onSearch?: (searchText: string) => Promise<SelectOption[]>;
     width?: number | string; // 新增 width 属性，与 Ant Design ColumnsType 一致
+    fixed?: 'left' | 'right'; // 新增 fixed 属性
 }
 
 // 定义验证规则
@@ -215,6 +216,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             dataIndex: col.key,
             key: col.key,
             width: col.width, // 应用自定义列宽
+            fixed: col.fixed, // 应用 fixed 属性
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
                 const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
                 if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
@@ -283,6 +285,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                     title: '操作',
                     key: 'action',
                     width: 150, // 调整宽度以容纳多个按钮
+                    fixed: 'right' as const, // 操作列默认固定在右侧
                     render: (_: any, __: TData, rowIndex: number) => (
                         <div>
                             {actions.includes('delete') && (
@@ -317,7 +320,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 dataSource={tableData}
                 rowKey={rowKey}
                 pagination={{ pageSize: 10 }}
-                scroll={width ? { x: 'max-content' } : undefined}
+                scroll={{ x: width || true }} // 确保启用水平滚动
             />
             {enableAdd && (
                 <div className="table-actions">
