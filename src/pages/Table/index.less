@@ -1,7 +1,7 @@
 .editable-table {
   .editable-cell {
     cursor: pointer;
-    //color: @primary-color; // 使用 Ant Design 的主题变量
+    //color: @primary-color;
     &:hover {
       //background-color: fade(@primary-color, 10%);
     }
@@ -21,21 +21,22 @@
     }
   }
 
-  // 确保表格在指定宽度时可水平滚动
   &.ant-table-wrapper {
     overflow-x: auto;
     white-space: nowrap;
   }
 
-  // 确保表格内容不换行，保持水平滚动
   .ant-table {
     min-width: 100%;
     table {
       width: 100%;
-      min-width: max-content; // 确保表格内容撑开
+      min-width: max-content;
     }
     .ant-table-cell {
-      white-space: nowrap; // 防止单元格内容换行
+      white-space: nowrap;
+      overflow: hidden; // 隐藏超出宽度的内容
+      text-overflow: ellipsis; // 超长内容显示省略号
+      max-width: 300px; // 防止单列过宽，可根据需要调整
     }
   }
 }

@@ -1,4 +1,5 @@
-import React, {JSX, useState} from 'react';
+// EditProTable.tsx
+import React, { JSX, useState } from 'react';
 import { Table, Input, Button, Popconfirm, message, Select } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import './index.less';
@@ -19,6 +20,7 @@ export interface Column {
     defaultValue?: string | number | (string | number)[];
     options?: SelectOption[];
     onSearch?: (searchText: string) => Promise<SelectOption[]>;
+    width?: number | string; // 新增 width 属性，与 Ant Design ColumnsType 一致
 }
 
 // 定义验证规则
@@ -39,7 +41,7 @@ export interface EditableTableProps<TData extends Record<string, string | number
     enableDelete?: boolean;
     autoSave?: boolean;
     validation?: Record<string, ValidationRule>;
-    width?: number | string; // 新增宽度属性
+    width?: number | string;
 }
 
 // 使用 React.FC 声明泛型组件
@@ -54,7 +56,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                                                                                                 enableDelete = true,
                                                                                                 autoSave = true,
                                                                                                 validation = {},
-                                                                                                width, // 新增宽度属性
+                                                                                                width,
                                                                                             }: EditableTableProps<TData>): JSX.Element => {
     const [tableData, setTableData] = useState<TData[]>(data);
     const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number }>({
@@ -147,7 +149,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         if (autoSave) onSave(newData);
 
         setEditingCell({ rowIndex: -1, colIndex: -1 });
-        setCurrentOptions([]); // 清空当前选项
+        setCurrentOptions([]);
     };
 
     // 新增行
@@ -178,6 +180,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             title: col.title,
             dataIndex: col.key,
             key: col.key,
+            width: col.width, // 应用自定义列宽
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
                 const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
                 if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
@@ -245,6 +248,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 {
                     title: '操作',
                     key: 'action',
+                    width: 100, // 为操作列设置固定宽度
                     render: (_: any, __: TData, rowIndex: number) => (
                         <Popconfirm
                             title="确认删除此行？"
@@ -267,7 +271,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 dataSource={tableData}
                 rowKey={rowKey}
                 pagination={{ pageSize: 10 }}
-                scroll={width ? { x: 'max-content' } : undefined} // 启用水平滚动
+                scroll={width ? { x: 'max-content' } : undefined}
             />
             {enableAdd && (
                 <div className="table-actions">
