@@ -72,8 +72,11 @@ const TableTest: React.FC = () => {
                 data={data}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)} // 可选回调
                 onAdd={handleAdd}
                 width={700}
+                actions={['delete', 'copy']} // 显示删除和复制
+                copyToEnd={true} // 复制到末尾
                 validation={{ name: { min: 2 } }}
             />
         </div>

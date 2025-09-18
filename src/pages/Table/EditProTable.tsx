@@ -29,6 +29,9 @@ interface ValidationRule {
     min?: number;
 }
 
+// 定义操作类型
+type ActionType = 'delete' | 'copy';
+
 // 定义组件的 Props 类型，使用泛型
 export interface EditableTableProps<TData extends Record<string, string | number | (string | number)[]>> {
     columns: Column[];
@@ -37,8 +40,12 @@ export interface EditableTableProps<TData extends Record<string, string | number
     onSave: (updatedData: TData[]) => void;
     onDelete?: (index: number) => void;
     onAdd?: (newData: TData[]) => void;
+    onCopy?: (copiedData: TData[], originalIndex: number) => void; // 新增复制回调
     enableAdd?: boolean;
     enableDelete?: boolean;
+    enableCopy?: boolean; // 新增复制功能开关
+    actions?: ActionType[]; // 新增 actions 配置，控制操作列显示哪些按钮
+    copyToEnd?: boolean; // 新增复制位置配置，true 为末尾，false 为开头
     autoSave?: boolean;
     validation?: Record<string, ValidationRule>;
     width?: number | string;
@@ -52,8 +59,12 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                                                                                                 onSave,
                                                                                                 onDelete,
                                                                                                 onAdd,
+                                                                                                onCopy,
                                                                                                 enableAdd = true,
                                                                                                 enableDelete = true,
+                                                                                                enableCopy = true,
+                                                                                                actions = ['delete', 'copy'], // 默认显示删除和复制
+                                                                                                copyToEnd = true, // 默认复制到末尾
                                                                                                 autoSave = true,
                                                                                                 validation = {},
                                                                                                 width,
@@ -174,6 +185,29 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         onSave(newData);
     };
 
+    // 复制行
+    const handleCopyRow = (rowIndex: number) => {
+        const newData = [...tableData];
+        const copiedRow: TData = { ...newData[rowIndex] };
+        // 生成新的 ID（假设 rowKey 是 'id'，可以根据实际 rowKey 调整）
+        if (typeof rowKey === 'string') {
+            copiedRow[rowKey] = (tableData.length + 1).toString();
+        } else if (typeof rowKey === 'function') {
+            const newId = rowKey(newData[rowIndex]);
+            copiedRow[rowKey as any] = newId; // 简化处理，实际可根据需求优化
+        }
+        // 插入位置：copyToEnd 为 true 时插入末尾，否则插入开头
+        if (copyToEnd) {
+            newData.push(copiedRow);
+        } else {
+            newData.unshift(copiedRow);
+        }
+        setTableData(newData);
+        onCopy?.(newData, rowIndex);
+        if (autoSave) onSave(newData);
+        message.success('行复制成功');
+    };
+
     // 表格列配置
     const tableColumns: ColumnsType<TData> = [
         ...columns.map((col, colIndex) => ({
@@ -243,21 +277,33 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 );
             },
         })),
-        ...(enableDelete
+        ...(actions && actions.length > 0
             ? [
                 {
                     title: '操作',
                     key: 'action',
-                    width: 100, // 为操作列设置固定宽度
+                    width: 150, // 调整宽度以容纳多个按钮
                     render: (_: any, __: TData, rowIndex: number) => (
-                        <Popconfirm
-                            title="确认删除此行？"
-                            onConfirm={() => handleDeleteRow(rowIndex)}
-                            okText="确定"
-                            cancelText="取消"
-                        >
-                            <Button type="link">删除</Button>
-                        </Popconfirm>
+                        <div>
+                            {actions.includes('delete') && (
+                                <Popconfirm
+                                    title="确认删除此行？"
+                                    onConfirm={() => handleDeleteRow(rowIndex)}
+                                    okText="确定"
+                                    cancelText="取消"
+                                >
+                                    <Button type="link" style={{ marginRight: 8 }}>删除</Button>
+                                </Popconfirm>
+                            )}
+                            {actions.includes('copy') && (
+                                <Button
+                                    type="link"
+                                    onClick={() => handleCopyRow(rowIndex)}
+                                >
+                                    复制
+                                </Button>
+                            )}
+                        </div>
                     ),
                 },
             ]
