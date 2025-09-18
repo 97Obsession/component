@@ -6,13 +6,15 @@ interface DataType {
     age: number,
     email: string,
     job: string,
+    hobby: string,
+    search: string
 }
 // 懒加载会导致无法识别组件会可传入泛型的组件，所以要避免
 
 const TableTest: React.FC = () => {
     const [data, setData] = useState<DataType []>([
-        { id: "1", name: '张三', age: 25, email: 'zhangsan@example.com', job: "react" },
-        { id: "2", name: '李四', age: 30, email: 'lisi@example.com', job: "vue"},
+        { id: "1", name: '张三', age: 25, email: 'zhangsan@example.com', job: "react", hobby: "1" , search: "1"},
+        { id: "2", name: '李四', age: 30, email: 'lisi@example.com', job: "vue", hobby: "1" , search: "1"},
     ]);
     const mockApiSearch = async (searchText: string): Promise<SelectOption[]> => {
         // 模拟异步请求
@@ -69,6 +71,7 @@ const TableTest: React.FC = () => {
             onSave={handleSave}
             onDelete={handleDelete}
             onAdd={handleAdd}
+            width={700}
             validation={{ name: { min: 2 } }} // 姓名至少2位
         />
         </div>

@@ -16,9 +16,26 @@
     text-align: right;
     //background-color: @background-color-light;
 
-
     .ant-btn {
       margin-left: 8px;
+    }
+  }
+
+  // 确保表格在指定宽度时可水平滚动
+  &.ant-table-wrapper {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  // 确保表格内容不换行，保持水平滚动
+  .ant-table {
+    min-width: 100%;
+    table {
+      width: 100%;
+      min-width: max-content; // 确保表格内容撑开
+    }
+    .ant-table-cell {
+      white-space: nowrap; // 防止单元格内容换行
     }
   }
 }

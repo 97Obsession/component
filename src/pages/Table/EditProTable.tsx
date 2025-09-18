@@ -39,6 +39,7 @@ export interface EditableTableProps<TData extends Record<string, string | number
     enableDelete?: boolean;
     autoSave?: boolean;
     validation?: Record<string, ValidationRule>;
+    width?: number | string; // 新增宽度属性
 }
 
 // 使用 React.FC 声明泛型组件
@@ -53,6 +54,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                                                                                                 enableDelete = true,
                                                                                                 autoSave = true,
                                                                                                 validation = {},
+                                                                                                width, // 新增宽度属性
                                                                                             }: EditableTableProps<TData>): JSX.Element => {
     const [tableData, setTableData] = useState<TData[]>(data);
     const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number }>({
@@ -259,12 +261,13 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
     ];
 
     return (
-        <div className="editable-table">
+        <div className="editable-table" style={{ width: width || '100%', overflowX: width ? 'auto' : 'visible' }}>
             <Table
                 columns={tableColumns}
                 dataSource={tableData}
                 rowKey={rowKey}
                 pagination={{ pageSize: 10 }}
+                scroll={width ? { x: 'max-content' } : undefined} // 启用水平滚动
             />
             {enableAdd && (
                 <div className="table-actions">
