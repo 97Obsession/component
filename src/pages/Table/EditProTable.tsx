@@ -4,7 +4,7 @@ import { ColumnsType } from 'antd/es/table';
 import './index.less';
 
 // 定义下拉选项类型
-interface SelectOption {
+export interface SelectOption {
     value: string | number;
     label: string;
 }
@@ -13,11 +13,12 @@ interface SelectOption {
 export interface Column {
     key: string;
     title: string;
-    type?: 'text' | 'number' | 'email' | 'select' | 'multipleSelect';
+    type?: 'text' | 'number' | 'email' | 'select' | 'multipleSelect' | 'autocompleteSelect';
     required?: boolean;
     editable?: boolean;
     defaultValue?: string | number | (string | number)[];
     options?: SelectOption[];
+    onSearch?: (searchText: string) => Promise<SelectOption[]>;
 }
 
 // 定义验证规则
@@ -59,12 +60,25 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         colIndex: -1,
     });
     const [tempValue, setTempValue] = useState<string | number | (string | number)[]>('');
+    const [currentOptions, setCurrentOptions] = useState<SelectOption[]>([]);
+    const [loading, setLoading] = useState(false);
 
     // 处理单元格点击编辑
     const handleCellClick = (rowIndex: number, colIndex: number, value: string | number | (string | number)[]) => {
         if (!columns[colIndex].editable) return;
         setEditingCell({ rowIndex, colIndex });
         setTempValue(value);
+        const col = columns[colIndex];
+        if (col.type === 'autocompleteSelect') {
+            setCurrentOptions(col.options || []);
+            if (col.onSearch) {
+                setLoading(true);
+                col.onSearch('').then(opts => {
+                    setCurrentOptions(opts);
+                    setLoading(false);
+                }).catch(() => setLoading(false));
+            }
+        }
     };
 
     // 处理输入变化
@@ -113,7 +127,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             return;
         }
 
-        if ((col.type === 'select' || col.type === 'multipleSelect') && col.options) {
+        if ((col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') && col.options) {
             if (Array.isArray(newValue)) {
                 if (!newValue.every(val => col.options!.some(opt => opt.value === val))) {
                     await message.error(`${col.title}必须选择有效选项`);
@@ -125,19 +139,23 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             }
         }
 
-        const newData= [...tableData] ;
+        const newData = [...tableData];
         newData[rowIndex][key] = newValue;
         setTableData(newData);
         if (autoSave) onSave(newData);
 
         setEditingCell({ rowIndex: -1, colIndex: -1 });
+        setCurrentOptions([]); // 清空当前选项
     };
 
     // 新增行
     const handleAddRow = () => {
-        const newRow: TData= { id: (tableData.length + 1).toString() } as TData;
+        const newRow: TData = { id: (tableData.length + 1).toString() } as TData;
         columns.forEach(col => {
-            newRow[col.key] = col.defaultValue !== undefined ? col.defaultValue : col.type === 'multipleSelect' || col.type === 'select' ? [] : '';
+            newRow[col.key] = col.defaultValue !== undefined ? col.defaultValue
+                : col.type === 'multipleSelect' ? []
+                    : (col.type === 'select' || col.type === 'autocompleteSelect') ? ''
+                        : '';
         });
         const newData = [...tableData, newRow];
         setTableData(newData);
@@ -154,18 +172,28 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
 
     // 表格列配置
     const tableColumns: ColumnsType<TData> = [
-        // colIndex是对应列
         ...columns.map((col, colIndex) => ({
             title: col.title,
             dataIndex: col.key,
             key: col.key,
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
-                // rowIndex是对应data里面的行 record是这一行的值
                 const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
-                if (col.type === 'select' || col.type === 'multipleSelect') {
+                if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
                     return isEditing ? (
                         <Select
                             mode={col.type === 'multipleSelect' ? 'multiple' : undefined}
+                            showSearch={col.type === 'autocompleteSelect'}
+                            filterOption={col.type === 'autocompleteSelect' ? false : true}
+                            onSearch={col.type === 'autocompleteSelect' ? (searchValue) => {
+                                if (col.onSearch) {
+                                    setLoading(true);
+                                    col.onSearch(searchValue).then(opts => {
+                                        setCurrentOptions(opts);
+                                        setLoading(false);
+                                    }).catch(() => setLoading(false));
+                                }
+                            } : undefined}
+                            loading={loading}
                             value={tempValue}
                             onChange={handleSelectChange}
                             onBlur={() => handleSave(rowIndex, colIndex)}
@@ -173,7 +201,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                             autoFocus
                             className="editable-input"
                         >
-                            {col.options?.map(option => (
+                            {(col.type === 'autocompleteSelect' ? currentOptions : col.options)?.map(option => (
                                 <Select.Option key={option.value} value={option.value}>
                                     {option.label}
                                 </Select.Option>
@@ -184,10 +212,10 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                             onClick={() => handleCellClick(rowIndex, colIndex, value)}
                             className={col.editable ? 'editable-cell' : ''}
                         >
-              {Array.isArray(value)
-                  ? value.map(val => col.options?.find(opt => opt.value === val)?.label || val).join(', ') || '--'
-                  : (col.options?.find(opt => opt.value === value)?.label || value) || '--'}
-            </span>
+                            {Array.isArray(value)
+                                ? value.map(val => col.options?.find(opt => opt.value === val)?.label || val).join(', ') || '--'
+                                : (col.options?.find(opt => opt.value === value)?.label || value) || '--'}
+                        </span>
                     );
                 }
                 return isEditing ? (
@@ -205,8 +233,8 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                         onClick={() => handleCellClick(rowIndex, colIndex, value)}
                         className={col.editable ? 'editable-cell' : ''}
                     >
-            {Array.isArray(value) ? value.join(', ') : value || '--'}
-          </span>
+                        {Array.isArray(value) ? value.join(', ') : value || '--'}
+                    </span>
                 );
             },
         })),
