@@ -13,10 +13,10 @@ interface SelectOption {
 export interface Column {
     key: string;
     title: string;
-    type?: 'text' | 'number' | 'email' | 'select';
+    type?: 'text' | 'number' | 'email' | 'select' | 'multipleSelect';
     required?: boolean;
     editable?: boolean;
-    defaultValue?: string | number;
+    defaultValue?: string | number | (string | number)[];
     options?: SelectOption[];
 }
 
@@ -27,7 +27,7 @@ interface ValidationRule {
 }
 
 // 定义组件的 Props 类型，使用泛型
-export interface EditableTableProps<TData extends Record<string, string | number>> {
+export interface EditableTableProps<TData extends Record<string, string | number | (string | number)[]>> {
     columns: Column[];
     data: TData[];
     rowKey?: keyof TData | ((record: TData) => string);
@@ -41,27 +41,27 @@ export interface EditableTableProps<TData extends Record<string, string | number
 }
 
 // 使用 React.FC 声明泛型组件
-const EditableTable = <TData extends Record<string, string | number>>({
-                                                                          columns,
-                                                                          data,
-                                                                          rowKey = 'id',
-                                                                          onSave,
-                                                                          onDelete,
-                                                                          onAdd,
-                                                                          enableAdd = true,
-                                                                          enableDelete = true,
-                                                                          autoSave = true,
-                                                                          validation = {},
-                                                                      }: EditableTableProps<TData>): JSX.Element => {
+const EditableTable = <TData extends Record<string, string | number | (string | number)[]>>({
+                                                                                                columns,
+                                                                                                data,
+                                                                                                rowKey = 'id',
+                                                                                                onSave,
+                                                                                                onDelete,
+                                                                                                onAdd,
+                                                                                                enableAdd = true,
+                                                                                                enableDelete = true,
+                                                                                                autoSave = true,
+                                                                                                validation = {},
+                                                                                            }: EditableTableProps<TData>): JSX.Element => {
     const [tableData, setTableData] = useState<TData[]>(data);
     const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number }>({
         rowIndex: -1,
         colIndex: -1,
     });
-    const [tempValue, setTempValue] = useState<string | number>('');
+    const [tempValue, setTempValue] = useState<string | number | (string | number)[]>('');
 
     // 处理单元格点击编辑
-    const handleCellClick = (rowIndex: number, colIndex: number, value: string | number) => {
+    const handleCellClick = (rowIndex: number, colIndex: number, value: string | number | (string | number)[]) => {
         if (!columns[colIndex].editable) return;
         setEditingCell({ rowIndex, colIndex });
         setTempValue(value);
@@ -74,8 +74,8 @@ const EditableTable = <TData extends Record<string, string | number>>({
         setTempValue(col?.type === 'number' ? (value === '' ? '' : Number(value)) : value);
     };
 
-    // 处理下拉选择变化
-    const handleSelectChange = (value: string | number) => {
+    // 处理选择变化（单选和多选）
+    const handleSelectChange = (value: string | number | (string | number)[]) => {
         setTempValue(value);
     };
 
@@ -94,6 +94,10 @@ const EditableTable = <TData extends Record<string, string | number>>({
                 await message.error(`${col.title}必须是有效的数字`);
                 return;
             }
+            if (Array.isArray(newValue) && newValue.length === 0) {
+                await message.error(`${col.title}至少选择一项`);
+                return;
+            }
         }
 
         if (validation[key]?.min && typeof newValue === 'string' && newValue.length < validation[key].min) {
@@ -104,10 +108,21 @@ const EditableTable = <TData extends Record<string, string | number>>({
             await message.error(`${col.title}值必须大于或等于${validation[key].min}`);
             return;
         }
-
-        if (col.type === 'select' && col.options && !col.options.some(opt => opt.value === newValue)) {
-            await message.error(`${col.title}必须选择有效选项`);
+        if (validation[key]?.min && Array.isArray(newValue) && newValue.length < validation[key].min) {
+            await message.error(`${col.title}至少选择${validation[key].min}项`);
             return;
+        }
+
+        if ((col.type === 'select' || col.type === 'multipleSelect') && col.options) {
+            if (Array.isArray(newValue)) {
+                if (!newValue.every(val => col.options!.some(opt => opt.value === val))) {
+                    await message.error(`${col.title}必须选择有效选项`);
+                    return;
+                }
+            } else if (!col.options.some(opt => opt.value === newValue)) {
+                await message.error(`${col.title}必须选择有效选项`);
+                return;
+            }
         }
 
         const newData= [...tableData] ;
@@ -122,7 +137,7 @@ const EditableTable = <TData extends Record<string, string | number>>({
     const handleAddRow = () => {
         const newRow: TData= { id: (tableData.length + 1).toString() } as TData;
         columns.forEach(col => {
-            newRow[col.key] = col.defaultValue !== undefined ? col.defaultValue : col.type === 'select' ? '' : '';
+            newRow[col.key] = col.defaultValue !== undefined ? col.defaultValue : col.type === 'multipleSelect' || col.type === 'select' ? [] : '';
         });
         const newData = [...tableData, newRow];
         setTableData(newData);
@@ -144,12 +159,13 @@ const EditableTable = <TData extends Record<string, string | number>>({
             title: col.title,
             dataIndex: col.key,
             key: col.key,
-            render: (value: string | number, record: TData, rowIndex: number) => {
+            render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
                 // rowIndex是对应data里面的行 record是这一行的值
                 const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
-                if (col.type === 'select') {
+                if (col.type === 'select' || col.type === 'multipleSelect') {
                     return isEditing ? (
                         <Select
+                            mode={col.type === 'multipleSelect' ? 'multiple' : undefined}
                             value={tempValue}
                             onChange={handleSelectChange}
                             onBlur={() => handleSave(rowIndex, colIndex)}
@@ -168,14 +184,16 @@ const EditableTable = <TData extends Record<string, string | number>>({
                             onClick={() => handleCellClick(rowIndex, colIndex, value)}
                             className={col.editable ? 'editable-cell' : ''}
                         >
-              {(col.options?.find(opt => opt.value === value)?.label || value) || '--'}
+              {Array.isArray(value)
+                  ? value.map(val => col.options?.find(opt => opt.value === val)?.label || val).join(', ') || '--'
+                  : (col.options?.find(opt => opt.value === value)?.label || value) || '--'}
             </span>
                     );
                 }
                 return isEditing ? (
                     <Input
                         type={col.type || 'text'}
-                        value={tempValue}
+                        value={tempValue as string | number}
                         onChange={handleInputChange}
                         onBlur={() => handleSave(rowIndex, colIndex)}
                         onPressEnter={() => handleSave(rowIndex, colIndex)}
@@ -187,7 +205,7 @@ const EditableTable = <TData extends Record<string, string | number>>({
                         onClick={() => handleCellClick(rowIndex, colIndex, value)}
                         className={col.editable ? 'editable-cell' : ''}
                     >
-            {value || '--'}
+            {Array.isArray(value) ? value.join(', ') : value || '--'}
           </span>
                 );
             },

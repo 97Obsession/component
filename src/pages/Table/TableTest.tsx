@@ -20,6 +20,7 @@ const TableTest: React.FC = () => {
         { key: 'age', title: '年龄', type: 'number', required: true, editable: true, defaultValue: 0 },
         { key: 'email', title: '邮箱', type: 'email', editable: true, defaultValue: '' },
         { key: 'job', title: '职业', type: 'select', editable: true,defaultValue: '', options: [{label: "react", value: "1"}, {label: "vue", value: "2"}] },
+        { key: 'hobby', title: '爱好', type: 'multipleSelect', editable: true,defaultValue: '', options: [{label: "游泳", value: "1"}, {label: "羽毛球", value: "2"}] },
     ];
 
     const handleSave:(updatedData: DataType[]) => void = (updatedData: DataType[]) => {
