@@ -10,12 +10,13 @@ interface DataType {
     job: string;
     hobby: string;
     search: string;
+    date: string;
 }
 
 const TableTest: React.FC = () => {
     const [data, setData] = useState<DataType[]>([
-        { id: '1', name: '张三', age: 25, email: 'zhangsan@example.com', job: 'react', hobby: '1', search: '1' },
-        { id: '2', name: '李四', age: 30, email: 'lisi@example.com', job: 'vue', hobby: '1', search: '1' },
+        { id: '1', name: '张三', age: 25, email: 'zhangsan@example.com', job: 'react', hobby: '1', search: '1', date: '2025-09-18' },
+        { id: '2', name: '李四', age: 30, email: 'lisi@example.com', job: 'vue', hobby: '1', search: '1', date: '2025-09-18' },
     ]);
 
     const mockApiSearch = async (searchText: string): Promise<SelectOption[]> => {
@@ -48,6 +49,15 @@ const TableTest: React.FC = () => {
                 console.log(searchText);
                 return mockApiSearch(searchText);
             },
+            width: 150,
+        },
+        {
+            key: 'date',
+            title: '日期',
+            type: 'date',
+            editable: true,
+            required: true,
+            format: 'YYYY-MM-DD', // 自定义日期格式
             width: 150,
         },
     ];

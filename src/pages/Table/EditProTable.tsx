@@ -1,8 +1,9 @@
 // EditProTable.tsx
 import React, { JSX, useState } from 'react';
-import { Table, Input, Button, Popconfirm, message, Select } from 'antd';
+import {Table, Input, Button, Popconfirm, message, Select, DatePicker} from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import './index.less';
+import dayjs from "dayjs";
 
 // 定义下拉选项类型
 export interface SelectOption {
@@ -14,7 +15,7 @@ export interface SelectOption {
 export interface Column {
     key: string;
     title: string;
-    type?: 'text' | 'number' | 'email' | 'select' | 'multipleSelect' | 'autocompleteSelect';
+    type?: 'text' | 'number' | 'email' | 'select' | 'multipleSelect' | 'autocompleteSelect' | 'date';
     required?: boolean;
     editable?: boolean;
     defaultValue?: string | number | (string | number)[];
@@ -22,6 +23,7 @@ export interface Column {
     onSearch?: (searchText: string) => Promise<SelectOption[]>;
     width?: number | string; // 新增 width 属性，与 Ant Design ColumnsType 一致
     fixed?: 'left' | 'right'; // 新增 fixed 属性
+    format?: string; // 新增 format 属性，用于日期格式
 }
 
 // 定义验证规则
@@ -142,6 +144,10 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             await message.error(`${col.title}至少选择${validation[key].min}项`);
             return;
         }
+        if (col.type === 'date' && !newValue) {
+            await message.error(`${col.title}必须选择一个有效日期`);
+            return;
+        }
 
         if ((col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') && col.options) {
             if (Array.isArray(newValue)) {
@@ -151,6 +157,13 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 }
             } else if (!col.options.some(opt => opt.value === newValue)) {
                 await message.error(`${col.title}必须选择有效选项`);
+                return;
+            }
+        }
+
+        if (col.type === 'date' && newValue) {
+            if (!dayjs(newValue, col.format || 'YYYY-MM-DD', true).isValid()) {
+                await message.error(`${col.title}必须是有效的日期格式`);
                 return;
             }
         }
@@ -209,6 +222,11 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         message.success('行复制成功');
     };
 
+    // 处理时间格式
+    const handleDateChange = (date: dayjs.Dayjs | null, dateString: string) => {
+        setTempValue(dateString);
+    };
+
     // 表格列配置
     const tableColumns: ColumnsType<TData> = [
         ...columns.map((col, colIndex) => ({
@@ -256,6 +274,26 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                             {Array.isArray(value)
                                 ? value.map(val => col.options?.find(opt => opt.value === val)?.label || val).join(', ') || '--'
                                 : (col.options?.find(opt => opt.value === value)?.label || value) || '--'}
+                        </span>
+                    );
+                }
+                if (col.type === 'date') {
+                    return isEditing ? (
+                        <DatePicker
+                            format={col.format || 'YYYY-MM-DD'}
+                            value={tempValue ? dayjs(tempValue as string, col.format || 'YYYY-MM-DD') : null}
+                            // onChange={handleDateChange}
+                            onBlur={() => handleSave(rowIndex, colIndex)}
+                            style={{ width: '100%' }}
+                            autoFocus
+                            className="editable-input"
+                        />
+                    ) : (
+                        <span
+                            onClick={() => handleCellClick(rowIndex, colIndex, value)}
+                            className={col.editable ? 'editable-cell' : ''}
+                        >
+                            {value || '--'}
                         </span>
                     );
                 }
