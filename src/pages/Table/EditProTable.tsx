@@ -222,9 +222,12 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         message.success('行复制成功');
     };
 
-    // 处理时间格式
-    const handleDateChange = (date: dayjs.Dayjs | null, dateString: string) => {
-        setTempValue(dateString);
+    // 处理日期变化
+    const handleDateChange = (date: dayjs.Dayjs | null, dateString: string | string[]) => {
+        // 假设为单日期选择，处理 dateString
+        console.log("日期变化了dateString", dateString);
+        console.log("日期变化了date", date);
+        setTempValue(Array.isArray(dateString) ? dateString[0] : dateString);
     };
 
     // 表格列配置
@@ -282,7 +285,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                         <DatePicker
                             format={col.format || 'YYYY-MM-DD'}
                             value={tempValue ? dayjs(tempValue as string, col.format || 'YYYY-MM-DD') : null}
-                            // onChange={handleDateChange}
+                            onChange={handleDateChange}
                             onBlur={() => handleSave(rowIndex, colIndex)}
                             style={{ width: '100%' }}
                             autoFocus

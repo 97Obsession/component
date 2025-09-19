@@ -1,6 +1,8 @@
 // TableTest.tsx
 import React, { useState } from 'react';
 import EditProTable, { Column, EditableTableProps, SelectOption } from './EditProTable';
+import {Button, Form, Select, Space} from "antd";
+import DynamicSelectList from "./DynamicSelectList";
 
 interface DataType {
     id: string;
@@ -12,8 +14,38 @@ interface DataType {
     search: string;
     date: string;
 }
+// 定义筛选条件的类型
+interface FilterCondition {
+    type: 'connected' | 'non-connected';
+    aggregation: 'sum' | 'count';
+}
+
+// 定义数据项的类型（假设原始数据结构）
+interface DataItem {
+    id: string;
+    type: 'connected' | 'non-connected';
+    value: number;
+    category: string;
+    date: string;
+}
+
+// 示例原始数据
+const initialData: DataItem[] = [
+    { id: '1', type: 'connected', value: 100, category: 'A', date: '2025-09-01' },
+    { id: '2', type: 'non-connected', value: 200, category: 'B', date: '2025-09-02' },
+    { id: '3', type: 'connected', value: 150, category: 'A', date: '2025-09-03' },
+    { id: '4', type: 'non-connected', value: 300, category: 'C', date: '2025-09-04' },
+];
 
 const TableTest: React.FC = () => {
+    // Form.useForm() 是一个 React Hook，返回一个单一的 form 实例（因此用数组解构 [form]）。
+    // 通过将 form 实例传递给 Form 组件的 form 属性（例如 <Form form={form}>），可以将表单的控制权绑定到这个实例。
+    // const [form] = Form.useForm();
+// 等价于：
+//     const formInstance = Form.useForm()[0];
+//     const form = formInstance;
+    const [form] = Form.useForm();
+    const [filteredData, setFilteredData] = useState<DataItem[]>(initialData);
     const [data, setData] = useState<DataType[]>([
         { id: '1', name: '张三', age: 25, email: 'zhangsan@example.com', job: 'react', hobby: '1', search: '1', date: '2025-09-18' },
         { id: '2', name: '李四', age: 30, email: 'lisi@example.com', job: 'vue', hobby: '1', search: '1', date: '2025-09-18' },
@@ -74,8 +106,127 @@ const TableTest: React.FC = () => {
         console.log('新增数据：', newData);
     };
 
+    // 处理表单提交
+    const onFinish = (values: { conditions: FilterCondition[] }) => {
+        let result = [...initialData];
+        debugger
+        // 应用筛选条件
+        values.conditions.forEach((condition) => {
+            // 筛选类型
+            if (condition.type) {
+                result = result.filter((item) => item.type === condition.type);
+            }
+
+            // 应用聚合
+            if (condition.aggregation === 'sum') {
+                const sum = result.reduce((acc, item) => acc + item.value, 0);
+                result = [{
+                    id: 'summary',
+                    type: condition.type,
+                    value: sum,
+                    category: '汇总',
+                    date: new Date().toISOString().split('T')[0], // 当前日期
+                }];
+            } else if (condition.aggregation === 'count') {
+                const count = result.length;
+                result = [{
+                    id: 'summary',
+                    type: condition.type,
+                    value: count,
+                    category: '计数',
+                    date: new Date().toISOString().split('T')[0], // 当前日期
+                }];
+            }
+        });
+
+        setFilteredData(result);
+    };
+    // 动态搜索条件的输入框类型
+    const metricSelectConfigs = [
+        { name: 'metric', placeholder: '请选择指标', options: [{ value: 'value', label: '值' }, { value: 'count', label: '计数' }] },
+        { name: 'type', placeholder: '请选择类型', options: [{ value: 'numeric', label: '数值' }, { value: 'text', label: '文本' }] },
+        { name: 'type', placeholder: '请选择类型', options: [{ value: 'numeric', label: '数值' }, { value: 'text', label: '文本' }] },
+    ];
     return (
         <div style={{ padding: 16 }}>
+            <Form
+                form={form}
+                onFinish={onFinish}
+                initialValues={{ conditions: [{ type: '', aggregation: '' }] }}
+                layout="horizontal"
+            >
+                <Form.List name="conditions">
+                    {(fields, { add, remove }) => (
+                        <>
+                            <Form.Item label="选择计算条件">
+                                {fields.map(({ key, name, ...restField }) => (
+                                    <Space key={key} align="baseline" style={{ marginBottom: 16 }}>
+                                        <Form.Item
+                                            {...restField}
+                                            name={[name, 'type']}
+                                            rules={[{ required: true, message: '请选择类型' }]}
+                                        >
+                                            <Select
+                                                style={{ width: 200 }}
+                                                placeholder="请选择类型"
+                                                options={[
+                                                    { value: 'connected', label: '连接出账' },
+                                                    { value: 'non-connected', label: '非连接出账' },
+                                                ]}
+                                            />
+                                        </Form.Item>
+                                        <Form.Item
+                                            {...restField}
+                                            name={[name, 'aggregation']}
+                                            rules={[{ required: true, message: '请选择聚合方式' }]}
+                                        >
+                                            <Select
+                                                style={{ width: 200 }}
+                                                placeholder="请选择聚合方式"
+                                                options={[
+                                                    { value: 'sum', label: '求和' },
+                                                    { value: 'count', label: '计数' },
+                                                ]}
+                                            />
+                                        </Form.Item>
+                                        {fields.length > 1 && (
+                                            <Button type="link" onClick={() => remove(name)}>
+                                                删除
+                                            </Button>
+                                        )}
+                                    </Space>
+                                ))}
+                            </Form.Item>
+                            <Form.Item>
+                                <Button
+                                    type="dashed"
+                                    onClick={() => add()}
+                                    block
+                                    style={{ marginBottom: 16 }}
+                                >
+                                    增加条件
+                                </Button>
+                            </Form.Item>
+                        </>
+                    )}
+                </Form.List>
+                <DynamicSelectList
+                    form={form}
+                    label="选择计算指标"
+                    name="metrics"
+                    selectConfigs={metricSelectConfigs}
+                    addButtonText="增加指标"
+                />
+                <Form.Item>
+                    {/*如果按钮的 htmlType 不是 "submit"（例如 "button"），点击按钮不会触发表单提交或 onFinish。你需要手动调用 form.submit() 来触发提交。*/}
+                    {/*验证字段：Form 自动调用内部的验证逻辑（基于 Form.Item 的 rules 属性），检查所有字段是否符合验证规则。*/}
+                    {/*收集表单数据：如果验证通过，Form 会收集所有字段的值，生成一个包含表单数据的对象。*/}
+                    {/*触发 onFinish：Form 组件将收集到的数据作为参数传递给 onFinish 函数（如果提供了该属性）。*/}
+                    <Button type="primary" htmlType="submit">
+                        筛选
+                    </Button>
+                </Form.Item>
+            </Form>
             <EditProTable<DataType>
                 columns={columns}
                 rowKey={'id'}
