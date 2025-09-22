@@ -1,8 +1,9 @@
 // TableTest.tsx
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import EditProTable, { Column, EditableTableProps, SelectOption } from './EditProTable';
 import {Button, Form, Select, Space} from "antd";
 import DynamicSelectList from "./DynamicSelectList";
+import axios from "axios";
 
 interface DataType {
     id: string;
@@ -45,12 +46,28 @@ const TableTest: React.FC = () => {
 //     const formInstance = Form.useForm()[0];
 //     const form = formInstance;
     const [form] = Form.useForm();
+    const [category, setCategory] = useState<SelectOption[]>([]);
     const [filteredData, setFilteredData] = useState<DataItem[]>(initialData);
     const [data, setData] = useState<DataType[]>([
         { id: '1', name: '张三', age: 25, email: 'zhangsan@example.com', job: 'react', hobby: '1', search: '1', date: '2025-09-18' },
         { id: '2', name: '李四', age: 30, email: 'lisi@example.com', job: 'vue', hobby: '1', search: '1', date: '2025-09-18' },
     ]);
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const response = await axios.get('/api/categories');
+                if (response.data.code === 200) {
+                   setCategory(response.data.data);
+                }
+            } catch (error) {
+                console.error('获取用户列表失败:', error);
+            } finally {
+                console.log('finally');
+            }
+        };
 
+        fetchUsers();
+    }, []);
     const mockApiSearch = async (searchText: string): Promise<SelectOption[]> => {
         await new Promise(resolve => setTimeout(resolve, 1000));
         const allOptions: SelectOption[] = [
@@ -63,6 +80,28 @@ const TableTest: React.FC = () => {
             option.label.toLowerCase().includes(searchText.toLowerCase())
         );
     };
+
+    const categoryColumns: Column[] = [
+        {key: 'name', title: '姓名', type: 'text', required: true, editable: true, defaultValue: 'test'},
+        {
+            key: 'category',
+            title: '分类',
+            type: 'select',
+            editable: true,
+            options: category,
+        },
+        {
+            key: 'subCategory',
+            title: '子分类',
+            type: 'select',
+            editable: true,
+            dependsOn: 'category', // 依赖 category 列
+            getOptions: async (categoryValue) => {
+                const response = await axios.get(`/api/focus-areas?category=${categoryValue}`);
+                return response.data.data;
+            },
+        },
+    ]
 
     const columns: Column[] = [
         { key: 'name', title: '姓名', type: 'text', required: true, editable: true, defaultValue: '', width: 150, fixed: "left"}, // 设置列宽
@@ -229,6 +268,19 @@ const TableTest: React.FC = () => {
             </Form>
             <EditProTable<DataType>
                 columns={columns}
+                rowKey={'id'}
+                data={data}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)} // 可选回调
+                onAdd={handleAdd}
+                width={700}
+                actions={['delete', 'copy']} // 显示删除和复制
+                copyToEnd={true} // 复制到末尾
+                validation={{ name: { min: 2 } }}
+            />
+            <EditProTable<DataType>
+                columns={categoryColumns}
                 rowKey={'id'}
                 data={data}
                 onSave={handleSave}

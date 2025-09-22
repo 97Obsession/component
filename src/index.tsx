@@ -10,6 +10,7 @@ import { AuthProvider } from './routes/AuthContext';
 import {Provider} from "react-redux";
 import {store} from "./redux/store";
 import 'antd/dist/reset.css';
+import './mock/index';
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(

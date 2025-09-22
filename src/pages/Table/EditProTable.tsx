@@ -24,6 +24,8 @@ export interface Column {
     width?: number | string; // 新增 width 属性，与 Ant Design ColumnsType 一致
     fixed?: 'left' | 'right'; // 新增 fixed 属性
     format?: string; // 新增 format 属性，用于日期格式
+    dependsOn?: string; // 新增：指定依赖的列 key
+    getOptions?: (dependentValue: string | number | (string | number)[]) => Promise<SelectOption[]> | SelectOption[]; // 新增：根据依赖值获取 options
 }
 
 // 定义验证规则
@@ -80,6 +82,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
     const [tempValue, setTempValue] = useState<string | number | (string | number)[]>('');
     const [currentOptions, setCurrentOptions] = useState<SelectOption[]>([]);
     const [loading, setLoading] = useState(false);
+    const [dynamicOptions, setDynamicOptions] = useState<Record<string, SelectOption[]>>({}); // 存储每列的动态 options
 
     // 处理单元格点击编辑
     const handleCellClick = (rowIndex: number, colIndex: number, value: string | number | (string | number)[]) => {
@@ -171,8 +174,20 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         const newData = [...tableData];
         newData[rowIndex][key] = newValue;
         setTableData(newData);
+        // 检查是否有列依赖当前列的值
+        const dependentColumns = columns.filter(c => c.dependsOn === key);
+        // for of是遍历可迭代对象的，如数组，string，map，set，一般不用于迭代对象（用for in）
+        for (const depCol of dependentColumns) {
+            // 遍历符合条件的数组
+            if(depCol.getOptions) {
+                const options = await depCol.getOptions(newValue);
+                setDynamicOptions(prev => ({
+                    ...prev,
+                    [depCol.key]: Array.isArray(options)?options: []
+                }))
+            }
+        }
         if (autoSave) onSave(newData);
-
         setEditingCell({ rowIndex: -1, colIndex: -1 });
         setCurrentOptions([]);
     };
@@ -240,6 +255,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             fixed: col.fixed, // 应用 fixed 属性
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
                 const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
+                const currentColumnOptions = col.dependsOn ? dynamicOptions[col.key] || col.options || [] : col.options || [];
                 if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
                     return isEditing ? (
                         <Select
@@ -263,7 +279,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                             autoFocus
                             className="editable-input"
                         >
-                            {(col.type === 'autocompleteSelect' ? currentOptions : col.options)?.map(option => (
+                            {(col.type === 'autocompleteSelect' && !col.dependsOn ? currentOptions : currentColumnOptions).map(option => (
                                 <Select.Option key={option.value} value={option.value}>
                                     {option.label}
                                 </Select.Option>
