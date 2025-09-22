@@ -1,9 +1,8 @@
-// EditProTable.tsx
 import React, { JSX, useState } from 'react';
-import {Table, Input, Button, Popconfirm, message, Select, DatePicker} from 'antd';
+import { Table, Input, Button, Popconfirm, message, Select, DatePicker } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import './index.less';
-import dayjs from "dayjs";
+import dayjs from 'dayjs';
 
 // 定义下拉选项类型
 export interface SelectOption {
@@ -21,11 +20,11 @@ export interface Column {
     defaultValue?: string | number | (string | number)[];
     options?: SelectOption[];
     onSearch?: (searchText: string) => Promise<SelectOption[]>;
-    width?: number | string; // 新增 width 属性，与 Ant Design ColumnsType 一致
-    fixed?: 'left' | 'right'; // 新增 fixed 属性
-    format?: string; // 新增 format 属性，用于日期格式
-    dependsOn?: string; // 新增：指定依赖的列 key
-    getOptions?: (dependentValue: string | number | (string | number)[]) => Promise<SelectOption[]> | SelectOption[]; // 新增：根据依赖值获取 options
+    width?: number | string;
+    fixed?: 'left' | 'right';
+    format?: string;
+    dependsOn?: string;
+    getOptions?: (dependentValue: string | number | (string | number)[]) => Promise<SelectOption[]> | SelectOption[];
 }
 
 // 定义验证规则
@@ -37,7 +36,7 @@ interface ValidationRule {
 // 定义操作类型
 type ActionType = 'delete' | 'copy';
 
-// 定义组件的 Props 类型，使用泛型
+// 定义组件的 Props 类型
 export interface EditableTableProps<TData extends Record<string, string | number | (string | number)[]>> {
     columns: Column[];
     data: TData[];
@@ -45,12 +44,12 @@ export interface EditableTableProps<TData extends Record<string, string | number
     onSave: (updatedData: TData[]) => void;
     onDelete?: (index: number) => void;
     onAdd?: (newData: TData[]) => void;
-    onCopy?: (copiedData: TData[], originalIndex: number) => void; // 新增复制回调
+    onCopy?: (copiedData: TData[], originalIndex: number) => void;
     enableAdd?: boolean;
     enableDelete?: boolean;
-    enableCopy?: boolean; // 新增复制功能开关
-    actions?: ActionType[]; // 新增 actions 配置，控制操作列显示哪些按钮
-    copyToEnd?: boolean; // 新增复制位置配置，true 为末尾，false 为开头
+    enableCopy?: boolean;
+    actions?: ActionType[];
+    copyToEnd?: boolean;
     autoSave?: boolean;
     validation?: Record<string, ValidationRule>;
     width?: number | string;
@@ -68,8 +67,8 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                                                                                                 enableAdd = true,
                                                                                                 enableDelete = true,
                                                                                                 enableCopy = true,
-                                                                                                actions = ['delete', 'copy'], // 默认显示删除和复制
-                                                                                                copyToEnd = true, // 默认复制到末尾
+                                                                                                actions = ['delete', 'copy'],
+                                                                                                copyToEnd = true,
                                                                                                 autoSave = true,
                                                                                                 validation = {},
                                                                                                 width,
@@ -82,14 +81,33 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
     const [tempValue, setTempValue] = useState<string | number | (string | number)[]>('');
     const [currentOptions, setCurrentOptions] = useState<SelectOption[]>([]);
     const [loading, setLoading] = useState(false);
-    const [dynamicOptions, setDynamicOptions] = useState<Record<string, SelectOption[]>>({}); // 存储每列的动态 options
+    const [dynamicOptions, setDynamicOptions] = useState<Record<string, SelectOption[]>>({});
+
+    // 辅助函数：判断值是否为空
+    const isEmptyValue = (value: string | number | (string | number)[]) => {
+        if (typeof value === 'string') return !value.trim();
+        if (typeof value === 'number') return isNaN(value);
+        if (Array.isArray(value)) return value.length === 0;
+        return !value;
+    };
 
     // 处理单元格点击编辑
     const handleCellClick = (rowIndex: number, colIndex: number, value: string | number | (string | number)[]) => {
-        if (!columns[colIndex].editable) return;
+        const col = columns[colIndex];
+        if (!col.editable) return;
+
+        // 检查依赖列值
+        if (col.dependsOn) {
+            const dependentValue = tableData[rowIndex][col.dependsOn];
+            if (isEmptyValue(dependentValue)) {
+                const dependCol = columns.find(c => c.key === col.dependsOn);
+                message.warning(`请先选择${dependCol?.title || '依赖列'}`);
+                return;
+            }
+        }
+
         setEditingCell({ rowIndex, colIndex });
         setTempValue(value);
-        const col = columns[colIndex];
         if (col.type === 'autocompleteSelect') {
             setCurrentOptions(col.options || []);
             if (col.onSearch) {
@@ -109,7 +127,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         setTempValue(col?.type === 'number' ? (value === '' ? '' : Number(value)) : value);
     };
 
-    // 处理选择变化（单选和多选）
+    // 处理选择变化
     const handleSelectChange = (value: string | number | (string | number)[]) => {
         setTempValue(value);
     };
@@ -174,20 +192,20 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
         const newData = [...tableData];
         newData[rowIndex][key] = newValue;
         setTableData(newData);
+
         // 检查是否有列依赖当前列的值
         const dependentColumns = columns.filter(c => c.dependsOn === key);
-        // for of是遍历可迭代对象的，如数组，string，map，set，一般不用于迭代对象（用for in）
         for (const depCol of dependentColumns) {
-            // 遍历符合条件的数组
-            if(depCol.getOptions) {
+            if (depCol.getOptions) {
                 const options = await depCol.getOptions(newValue);
                 setDynamicOptions(prev => ({
                     ...prev,
-                    [depCol.key]: Array.isArray(options)?options: []
-                }))
+                    [depCol.key]: Array.isArray(options) ? options : [],
+                }));
             }
         }
         if (autoSave) onSave(newData);
+
         setEditingCell({ rowIndex: -1, colIndex: -1 });
         setCurrentOptions([]);
     };
@@ -218,14 +236,12 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
     const handleCopyRow = (rowIndex: number) => {
         const newData = [...tableData];
         const copiedRow: TData = { ...newData[rowIndex] };
-        // 生成新的 ID（假设 rowKey 是 'id'，可以根据实际 rowKey 调整）
         if (typeof rowKey === 'string') {
             copiedRow[rowKey] = (tableData.length + 1).toString();
         } else if (typeof rowKey === 'function') {
             const newId = rowKey(newData[rowIndex]);
-            copiedRow[rowKey as any] = newId; // 简化处理，实际可根据需求优化
+            copiedRow[rowKey as any] = newId;
         }
-        // 插入位置：copyToEnd 为 true 时插入末尾，否则插入开头
         if (copyToEnd) {
             newData.push(copiedRow);
         } else {
@@ -239,9 +255,6 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
 
     // 处理日期变化
     const handleDateChange = (date: dayjs.Dayjs | null, dateString: string | string[]) => {
-        // 假设为单日期选择，处理 dateString
-        console.log("日期变化了dateString", dateString);
-        console.log("日期变化了date", date);
         setTempValue(Array.isArray(dateString) ? dateString[0] : dateString);
     };
 
@@ -251,18 +264,22 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             title: col.title,
             dataIndex: col.key,
             key: col.key,
-            width: col.width, // 应用自定义列宽
-            fixed: col.fixed, // 应用 fixed 属性
+            width: col.width,
+            fixed: col.fixed,
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
                 const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
                 const currentColumnOptions = col.dependsOn ? dynamicOptions[col.key] || col.options || [] : col.options || [];
+
+                // 计算是否可编辑：列本身可编辑 且 (无依赖 或 依赖列值不为空)
+                const isEditable = col.editable && (!col.dependsOn || !isEmptyValue(record[col.dependsOn]));
+
                 if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
                     return isEditing ? (
                         <Select
                             mode={col.type === 'multipleSelect' ? 'multiple' : undefined}
                             showSearch={col.type === 'autocompleteSelect'}
                             filterOption={col.type === 'autocompleteSelect' ? false : true}
-                            onSearch={col.type === 'autocompleteSelect' ? (searchValue) => {
+                            onSearch={col.type === 'autocompleteSelect' && !col.dependsOn ? (searchValue) => {
                                 if (col.onSearch) {
                                     setLoading(true);
                                     col.onSearch(searchValue).then(opts => {
@@ -278,6 +295,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                             style={{ width: '100%' }}
                             autoFocus
                             className="editable-input"
+                            disabled={!isEditable} // 新增：动态设置 Select 的 disabled 属性
                         >
                             {(col.type === 'autocompleteSelect' && !col.dependsOn ? currentOptions : currentColumnOptions).map(option => (
                                 <Select.Option key={option.value} value={option.value}>
@@ -287,12 +305,12 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                         </Select>
                     ) : (
                         <span
-                            onClick={() => handleCellClick(rowIndex, colIndex, value)}
-                            className={col.editable ? 'editable-cell' : ''}
+                            onClick={isEditable ? () => handleCellClick(rowIndex, colIndex, value) : undefined}
+                            className={isEditable ? 'editable-cell' : 'disabled-cell'}
                         >
                             {Array.isArray(value)
-                                ? value.map(val => col.options?.find(opt => opt.value === val)?.label || val).join(', ') || '--'
-                                : (col.options?.find(opt => opt.value === value)?.label || value) || '--'}
+                                ? value.map(val => currentColumnOptions.find(opt => opt.value === val)?.label || val).join(', ') || '--'
+                                : (currentColumnOptions.find(opt => opt.value === value)?.label || value) || '--'}
                         </span>
                     );
                 }
@@ -306,11 +324,12 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                             style={{ width: '100%' }}
                             autoFocus
                             className="editable-input"
+                            disabled={!isEditable} // 新增：动态设置 DatePicker 的 disabled 属性
                         />
                     ) : (
                         <span
-                            onClick={() => handleCellClick(rowIndex, colIndex, value)}
-                            className={col.editable ? 'editable-cell' : ''}
+                            onClick={isEditable ? () => handleCellClick(rowIndex, colIndex, value) : undefined}
+                            className={isEditable ? 'editable-cell' : 'disabled-cell'}
                         >
                             {value || '--'}
                         </span>
@@ -325,11 +344,12 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                         onPressEnter={() => handleSave(rowIndex, colIndex)}
                         autoFocus
                         className="editable-input"
+                        disabled={!isEditable} // 新增：动态设置 Input 的 disabled 属性
                     />
                 ) : (
                     <span
-                        onClick={() => handleCellClick(rowIndex, colIndex, value)}
-                        className={col.editable ? 'editable-cell' : ''}
+                        onClick={isEditable ? () => handleCellClick(rowIndex, colIndex, value) : undefined}
+                        className={isEditable ? 'editable-cell' : 'disabled-cell'}
                     >
                         {Array.isArray(value) ? value.join(', ') : value || '--'}
                     </span>
@@ -341,8 +361,8 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 {
                     title: '操作',
                     key: 'action',
-                    width: 150, // 调整宽度以容纳多个按钮
-                    fixed: 'right' as const, // 操作列默认固定在右侧
+                    width: 150,
+                    fixed: 'right' as const,
                     render: (_: any, __: TData, rowIndex: number) => (
                         <div>
                             {actions.includes('delete') && (
@@ -356,10 +376,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                                 </Popconfirm>
                             )}
                             {actions.includes('copy') && (
-                                <Button
-                                    type="link"
-                                    onClick={() => handleCopyRow(rowIndex)}
-                                >
+                                <Button type="link" onClick={() => handleCopyRow(rowIndex)}>
                                     复制
                                 </Button>
                             )}
@@ -377,7 +394,7 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
                 dataSource={tableData}
                 rowKey={rowKey}
                 pagination={{ pageSize: 10 }}
-                scroll={{ x: width || true }} // 确保启用水平滚动
+                scroll={{ x: width || true }}
             />
             {enableAdd && (
                 <div className="table-actions">

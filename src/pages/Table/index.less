@@ -38,5 +38,31 @@
       text-overflow: ellipsis; // 超长内容显示省略号
       max-width: 300px; // 防止单列过宽，可根据需要调整
     }
+    // 表格容器样式
+    .editable-cell {
+      cursor: pointer;
+      &:hover {
+        background-color: #f5f5f5; // 鼠标悬停时的背景色
+      }
+    }
+    // 输入框样式（用于 Select, Input, DatePicker）
+    .editable-input {
+      // 确保输入框在表格中显示正常
+      &.ant-select-disabled .ant-select-selector,
+      &.ant-input-disabled,
+      &.ant-picker-disabled {
+        background-color: #f5f5f5; // 与 Ant Design 默认禁用样式一致
+        color: #ccc;
+        cursor: not-allowed;
+      }
+    }
+    // 新增：禁用状态的单元格样式
+    .disabled-cell {
+      color: #ccc; // 灰色文字，表示不可编辑
+      cursor: not-allowed; // 禁用光标
+      &:hover {
+        background-color: transparent; // 禁用状态下无悬停效果
+      }
+    }
   }
 }
