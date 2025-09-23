@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import { Form, Select, Button, Space } from 'antd';
 import { FormInstance } from 'antd/lib/form';
 import { Rule } from 'antd/lib/form';
@@ -12,7 +12,7 @@ interface SelectConfig {
 }
 
 // 定义组件的 Props 类型
-interface DynamicSelectListProps {
+export interface DynamicSelectListProps {
     form: FormInstance; // 表单实例
     label: string; // 表单项标签，例如“选择过滤条件”
     name: string; // Form.List 的字段名，例如 'conditions'

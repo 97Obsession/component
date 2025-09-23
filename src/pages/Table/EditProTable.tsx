@@ -1,4 +1,4 @@
-import React, { JSX, useState } from 'react';
+import React, {JSX, useEffect, useState} from 'react';
 import { Table, Input, Button, Popconfirm, message, Select, DatePicker } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import './index.less';
@@ -56,7 +56,7 @@ export interface EditableTableProps<TData extends Record<string, string | number
 }
 
 // 使用 React.FC 声明泛型组件
-const EditableTable = <TData extends Record<string, string | number | (string | number)[]>>({
+const EditableTable = React.memo(<TData extends Record<string, string | number | (string | number)[]>>({
                                                                                                 columns,
                                                                                                 data,
                                                                                                 rowKey = 'id',
@@ -408,6 +408,6 @@ const EditableTable = <TData extends Record<string, string | number | (string | 
             )}
         </div>
     );
-};
+});
 
 export default EditableTable;

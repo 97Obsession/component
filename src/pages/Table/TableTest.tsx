@@ -1,5 +1,5 @@
 // TableTest.tsx
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import EditProTable, { Column, EditableTableProps, SelectOption } from './EditProTable';
 import {Button, Form, Select, Space} from "antd";
 import DynamicSelectList from "./DynamicSelectList";
@@ -48,13 +48,14 @@ const TableTest: React.FC = () => {
     const [form] = Form.useForm();
     const [category, setCategory] = useState<SelectOption[]>([]);
     const [filteredData, setFilteredData] = useState<DataItem[]>(initialData);
-    const [data, setData] = useState<DataType[]>([
+    const [data, setData] = useState<DataType[]>(useMemo( () => [
         { id: '1', name: '张三', age: 25, email: 'zhangsan@example.com', job: 'react', hobby: '1', search: '1', date: '2025-09-18' },
         { id: '2', name: '李四', age: 30, email: 'lisi@example.com', job: 'vue', hobby: '1', search: '1', date: '2025-09-18' },
-    ]);
+    ], []));
     useEffect(() => {
         const fetchUsers = async () => {
             try {
+                console.log("开始请求数据");
                 const response = await axios.get('/api/categories');
                 if (response.data.code === 200) {
                    setCategory(response.data.data);
@@ -103,7 +104,7 @@ const TableTest: React.FC = () => {
         },
     ]
 
-    const columns: Column[] = [
+    const columns: Column[] = useMemo(() => [
         { key: 'name', title: '姓名', type: 'text', required: true, editable: true, defaultValue: '', width: 150, fixed: "left"}, // 设置列宽
         { key: 'age', title: '年龄', type: 'number', required: true, editable: true, defaultValue: 0, width: 100 },
         { key: 'email', title: '邮箱', type: 'email', editable: true, defaultValue: '', width: 200 },
@@ -131,7 +132,7 @@ const TableTest: React.FC = () => {
             format: 'YYYY-MM-DD', // 自定义日期格式
             width: 150,
         },
-    ];
+    ], []);
 
     const handleSave: (updatedData: DataType[]) => void = (updatedData: DataType[]) => {
         console.log('保存数据：', updatedData);
@@ -184,7 +185,12 @@ const TableTest: React.FC = () => {
     const metricSelectConfigs = [
         { name: 'metric', placeholder: '请选择指标', options: [{ value: 'value', label: '值' }, { value: 'count', label: '计数' }] },
         { name: 'type', placeholder: '请选择类型', options: [{ value: 'numeric', label: '数值' }, { value: 'text', label: '文本' }] },
-        { name: 'type', placeholder: '请选择类型', options: [{ value: 'numeric', label: '数值' }, { value: 'text', label: '文本' }] },
+        { name: 'value', placeholder: '请选择梳子', options: [{ value: '1', label: '梳子1' }, { value: '2', label: '梳子2' }] },
+    ];
+
+    const sumSelectConfigs = [
+        { name: 'type', placeholder: '请选择类型', options: [{ value: 'connected', label: '连接出账' }, { value: 'non-connected', label: '非连接出账' }] },
+        { name: 'aggregation', placeholder: '请选择聚合方式', options: [{ value: 'count', label: '计数' }, { value: 'sum', label: '求和' }] },
     ];
     return (
         <div style={{ padding: 16 }}>
@@ -194,61 +200,13 @@ const TableTest: React.FC = () => {
                 initialValues={{ conditions: [{ type: '', aggregation: '' }] }}
                 layout="horizontal"
             >
-                <Form.List name="conditions">
-                    {(fields, { add, remove }) => (
-                        <>
-                            <Form.Item label="选择计算条件">
-                                {fields.map(({ key, name, ...restField }) => (
-                                    <Space key={key} align="baseline" style={{ marginBottom: 16 }}>
-                                        <Form.Item
-                                            {...restField}
-                                            name={[name, 'type']}
-                                            rules={[{ required: true, message: '请选择类型' }]}
-                                        >
-                                            <Select
-                                                style={{ width: 200 }}
-                                                placeholder="请选择类型"
-                                                options={[
-                                                    { value: 'connected', label: '连接出账' },
-                                                    { value: 'non-connected', label: '非连接出账' },
-                                                ]}
-                                            />
-                                        </Form.Item>
-                                        <Form.Item
-                                            {...restField}
-                                            name={[name, 'aggregation']}
-                                            rules={[{ required: true, message: '请选择聚合方式' }]}
-                                        >
-                                            <Select
-                                                style={{ width: 200 }}
-                                                placeholder="请选择聚合方式"
-                                                options={[
-                                                    { value: 'sum', label: '求和' },
-                                                    { value: 'count', label: '计数' },
-                                                ]}
-                                            />
-                                        </Form.Item>
-                                        {fields.length > 1 && (
-                                            <Button type="link" onClick={() => remove(name)}>
-                                                删除
-                                            </Button>
-                                        )}
-                                    </Space>
-                                ))}
-                            </Form.Item>
-                            <Form.Item>
-                                <Button
-                                    type="dashed"
-                                    onClick={() => add()}
-                                    block
-                                    style={{ marginBottom: 16 }}
-                                >
-                                    增加条件
-                                </Button>
-                            </Form.Item>
-                        </>
-                    )}
-                </Form.List>
+                <DynamicSelectList
+                    form={form}
+                    label="选择计算条件"
+                    name="conditions"
+                    selectConfigs={sumSelectConfigs}
+                    addButtonText="增加条件"
+                />
                 <DynamicSelectList
                     form={form}
                     label="选择计算指标"
@@ -266,19 +224,19 @@ const TableTest: React.FC = () => {
                     </Button>
                 </Form.Item>
             </Form>
-            <EditProTable<DataType>
-                columns={columns}
-                rowKey={'id'}
-                data={data}
-                onSave={handleSave}
-                onDelete={handleDelete}
-                onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)} // 可选回调
-                onAdd={handleAdd}
-                width={700}
-                actions={['delete', 'copy']} // 显示删除和复制
-                copyToEnd={true} // 复制到末尾
-                validation={{ name: { min: 2 } }}
-            />
+            {/*<EditProTable<DataType>*/}
+            {/*    columns={columns}*/}
+            {/*    rowKey={'id'}*/}
+            {/*    data={data}*/}
+            {/*    onSave={handleSave}*/}
+            {/*    onDelete={handleDelete}*/}
+            {/*    onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)} // 可选回调*/}
+            {/*    onAdd={handleAdd}*/}
+            {/*    width={700}*/}
+            {/*    actions={['delete', 'copy']} // 显示删除和复制*/}
+            {/*    copyToEnd={true} // 复制到末尾*/}
+            {/*    validation={{ name: { min: 2 } }}*/}
+            {/*/>*/}
             <EditProTable<DataType>
                 columns={categoryColumns}
                 rowKey={'id'}
