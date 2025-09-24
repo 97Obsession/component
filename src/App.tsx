@@ -28,7 +28,7 @@ const App = () => {
   const element = useRoutes(routes);
 
   return (
-      <Layout style={{minHeight: '100vh'}}>
+      <div style={{width: '100vw', height: '100vh', overflow: 'hidden', padding: '2vmin'}}>
 
           <Header>
               <Menu theme="dark" mode="horizontal" selectable={false} items={[
@@ -38,12 +38,12 @@ const App = () => {
                   {key: 'table', label: <Link to="/edit-proTable">EditProTable</Link>},
               ]}/>
           </Header>
-          <Content style={{padding: 24, maxWidth: 1000, margin: '0 auto'}}>
+          <Content>
               <Suspense fallback={<div style={{padding: 24}}><Spin/> 页面加载中...</div>}>
                   {element}
               </Suspense>
           </Content>
-      </Layout>
+      </div>
   );
 };
 
