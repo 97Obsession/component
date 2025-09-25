@@ -1,4 +1,4 @@
-import React, {JSX, useEffect, useState} from 'react';
+import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
 import { Table, Input, Button, Popconfirm, message, Select, DatePicker } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import './index.less';
@@ -55,163 +55,226 @@ export interface EditableTableProps<TData extends Record<string, string | number
     width?: number | string;
 }
 
+// 单元格编辑组件
+const CellEditor = React.memo<{
+    col: Column;
+    value: string | number | (string | number)[];
+    currentOptions: SelectOption[];
+    loading: boolean;
+    isEditable: boolean;
+    onChange: (value: string | number | (string | number)[]) => void;
+    onSearch?: (searchValue: string) => void;
+    onBlur: () => void;
+    onDateChange: (date: dayjs.Dayjs | null, dateString: string | string[]) => void;
+}>(({ col, value, currentOptions, loading, isEditable, onChange, onSearch, onBlur, onDateChange }) => {
+    if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
+        return (
+            <Select
+                mode={col.type === 'multipleSelect' ? 'multiple' : undefined}
+                showSearch={col.type === 'autocompleteSelect'}
+                filterOption={col.type === 'autocompleteSelect' ? false : true}
+                onSearch={col.type === 'autocompleteSelect' && !col.dependsOn ? onSearch : undefined}
+                loading={loading}
+                value={value}
+                onChange={onChange}
+                onBlur={onBlur}
+                style={{ width: '100%' }}
+                autoFocus
+                className="editable-input"
+                disabled={!isEditable}
+            >
+                {currentOptions.map(option => (
+                    <Select.Option key={option.value} value={option.value}>
+                        {option.label}
+                    </Select.Option>
+                ))}
+            </Select>
+        );
+    }
+    if (col.type === 'date') {
+        return (
+            <DatePicker
+                format={col.format || 'YYYY-MM-DD'}
+                value={value ? dayjs(value as string, col.format || 'YYYY-MM-DD') : null}
+                onChange={onDateChange}
+                onBlur={onBlur}
+                style={{ width: '100%' }}
+                autoFocus
+                className="editable-input"
+                disabled={!isEditable}
+            />
+        );
+    }
+    return (
+        <Input
+            type={col.type || 'text'}
+            value={value as string | number}
+            onChange={e => onChange(col.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
+            onBlur={onBlur}
+            onPressEnter={onBlur}
+            autoFocus
+            className="editable-input"
+            disabled={!isEditable}
+        />
+    );
+});
+
 // 使用 React.FC 声明泛型组件
 const EditableTable = React.memo(<TData extends Record<string, string | number | (string | number)[]>>({
-                                                                                                columns,
-                                                                                                data,
-                                                                                                rowKey = 'id',
-                                                                                                onSave,
-                                                                                                onDelete,
-                                                                                                onAdd,
-                                                                                                onCopy,
-                                                                                                enableAdd = true,
-                                                                                                enableDelete = true,
-                                                                                                enableCopy = true,
-                                                                                                actions = ['delete', 'copy'],
-                                                                                                copyToEnd = true,
-                                                                                                autoSave = true,
-                                                                                                validation = {},
-                                                                                                width,
-                                                                                            }: EditableTableProps<TData>): JSX.Element => {
+                                                                                                           columns,
+                                                                                                           data,
+                                                                                                           rowKey = 'id',
+                                                                                                           onSave,
+                                                                                                           onDelete,
+                                                                                                           onAdd,
+                                                                                                           onCopy,
+                                                                                                           enableAdd = true,
+                                                                                                           enableDelete = true,
+                                                                                                           enableCopy = true,
+                                                                                                           actions = ['delete', 'copy'],
+                                                                                                           copyToEnd = true,
+                                                                                                           autoSave = true,
+                                                                                                           validation = {},
+                                                                                                           width,
+                                                                                                       }: EditableTableProps<TData>): JSX.Element => {
     const [tableData, setTableData] = useState<TData[]>(data);
-    const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number }>({
-        rowIndex: -1,
-        colIndex: -1,
-    });
-    const [tempValue, setTempValue] = useState<string | number | (string | number)[]>('');
+    const [editingRowIndex, setEditingRowIndex] = useState<number>(-1);
+    const [tempRowData, setTempRowData] = useState<TData | null>(null);
     const [currentOptions, setCurrentOptions] = useState<SelectOption[]>([]);
     const [loading, setLoading] = useState(false);
     const [dynamicOptions, setDynamicOptions] = useState<Record<string, SelectOption[]>>({});
 
+    // 同步外部 data 到内部 state
+    useEffect(() => {
+        setTableData(data);
+    }, [data]);
+
     // 辅助函数：判断值是否为空
-    const isEmptyValue = (value: string | number | (string | number)[]) => {
+    const isEmptyValue = useCallback((value: string | number | (string | number)[]) => {
         if (typeof value === 'string') return !value.trim();
         if (typeof value === 'number') return isNaN(value);
         if (Array.isArray(value)) return value.length === 0;
         return !value;
-    };
+    }, []);
 
-    // 处理单元格点击编辑
-    const handleCellClick = (rowIndex: number, colIndex: number, value: string | number | (string | number)[]) => {
-        const col = columns[colIndex];
-        if (!col.editable) return;
-
-        // 检查依赖列值
-        if (col.dependsOn) {
-            const dependentValue = tableData[rowIndex][col.dependsOn];
-            if (isEmptyValue(dependentValue)) {
-                const dependCol = columns.find(c => c.key === col.dependsOn);
-                message.warning(`请先选择${dependCol?.title || '依赖列'}`);
-                return;
-            }
-        }
-
-        setEditingCell({ rowIndex, colIndex });
-        setTempValue(value);
-        if (col.type === 'autocompleteSelect') {
-            setCurrentOptions(col.options || []);
-            if (col.onSearch) {
+    // 开始编辑一行
+    const handleEditRow = useCallback((rowIndex: number) => {
+        setEditingRowIndex(rowIndex);
+        setTempRowData({ ...tableData[rowIndex] }); // 复制当前行数据作为临时数据
+        // 加载 autocompleteSelect 的初始选项
+        columns.forEach(col => {
+            if (col.type === 'autocompleteSelect' && col.onSearch) {
                 setLoading(true);
                 col.onSearch('').then(opts => {
                     setCurrentOptions(opts);
                     setLoading(false);
                 }).catch(() => setLoading(false));
             }
-        }
-    };
+        });
+    }, [columns, tableData]);
 
-    // 处理输入变化
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        const col = columns[editingCell.colIndex];
-        setTempValue(col?.type === 'number' ? (value === '' ? '' : Number(value)) : value);
-    };
+    // 处理单元格值变化
+    const handleCellChange = useCallback((key: string, value: string | number | (string | number)[]) => {
+        setTempRowData(prev => prev ? { ...prev, [key]: value } : prev);
+    }, []);
 
-    // 处理选择变化
-    const handleSelectChange = (value: string | number | (string | number)[]) => {
-        setTempValue(value);
-    };
+    // 处理保存行
+    const handleSaveRow = useCallback(async (rowIndex: number) => {
+        if (!tempRowData) return;
 
-    // 处理保存
-    const handleSave = async (rowIndex: number, colIndex: number) => {
-        const newValue = tempValue;
-        const col = columns[colIndex];
-        const key = col.key;
+        // 验证所有可编辑列
+        for (const col of columns) {
+            const key = col.key;
+            const newValue = tempRowData[key];
 
-        if (col.required) {
-            if (typeof newValue === 'string' && !newValue.trim()) {
-                await message.error(`${col.title}不能为空`);
+            if (col.required) {
+                if (typeof newValue === 'string' && !newValue.trim()) {
+                    await message.error(`${col.title}不能为空`);
+                    return;
+                }
+                if (typeof newValue === 'number' && isNaN(newValue)) {
+                    await message.error(`${col.title}必须是有效的数字`);
+                    return;
+                }
+                if (Array.isArray(newValue) && newValue.length === 0) {
+                    await message.error(`${col.title}至少选择一项`);
+                    return;
+                }
+            }
+
+            if (validation[key]?.min && typeof newValue === 'string' && newValue.length < validation[key].min) {
+                await message.error(`${col.title}长度至少${validation[key].min}位`);
                 return;
             }
-            if (typeof newValue === 'number' && isNaN(newValue)) {
-                await message.error(`${col.title}必须是有效的数字`);
+            if (validation[key]?.min && typeof newValue === 'number' && newValue < validation[key].min) {
+                await message.error(`${col.title}值必须大于或等于${validation[key].min}`);
                 return;
             }
-            if (Array.isArray(newValue) && newValue.length === 0) {
-                await message.error(`${col.title}至少选择一项`);
+            if (validation[key]?.min && Array.isArray(newValue) && newValue.length < validation[key].min) {
+                await message.error(`${col.title}至少选择${validation[key].min}项`);
                 return;
             }
-        }
+            if (col.type === 'date' && !newValue) {
+                await message.error(`${col.title}必须选择一个有效日期`);
+                return;
+            }
 
-        if (validation[key]?.min && typeof newValue === 'string' && newValue.length < validation[key].min) {
-            await message.error(`${col.title}长度至少${validation[key].min}位`);
-            return;
-        }
-        if (validation[key]?.min && typeof newValue === 'number' && newValue < validation[key].min) {
-            await message.error(`${col.title}值必须大于或等于${validation[key].min}`);
-            return;
-        }
-        if (validation[key]?.min && Array.isArray(newValue) && newValue.length < validation[key].min) {
-            await message.error(`${col.title}至少选择${validation[key].min}项`);
-            return;
-        }
-        if (col.type === 'date' && !newValue) {
-            await message.error(`${col.title}必须选择一个有效日期`);
-            return;
-        }
-
-        if ((col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') && col.options) {
-            if (Array.isArray(newValue)) {
-                if (!newValue.every(val => col.options!.some(opt => opt.value === val))) {
+            if ((col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') && col.options) {
+                if (Array.isArray(newValue)) {
+                    if (!newValue.every(val => col.options!.some(opt => opt.value === val))) {
+                        await message.error(`${col.title}必须选择有效选项`);
+                        return;
+                    }
+                } else if (!col.options.some(opt => opt.value === newValue)) {
                     await message.error(`${col.title}必须选择有效选项`);
                     return;
                 }
-            } else if (!col.options.some(opt => opt.value === newValue)) {
-                await message.error(`${col.title}必须选择有效选项`);
-                return;
+            }
+
+            if (col.type === 'date' && newValue) {
+                if (!dayjs(newValue, col.format || 'YYYY-MM-DD', true).isValid()) {
+                    await message.error(`${col.title}必须是有效的日期格式`);
+                    return;
+                }
             }
         }
 
-        if (col.type === 'date' && newValue) {
-            if (!dayjs(newValue, col.format || 'YYYY-MM-DD', true).isValid()) {
-                await message.error(`${col.title}必须是有效的日期格式`);
-                return;
+        // 更新表格数据
+        setTableData(prev => {
+            const newData = [...prev];
+            newData[rowIndex] = tempRowData;
+            return newData;
+        });
+
+        // 处理依赖列
+        for (const col of columns) {
+            const dependentColumns = columns.filter(c => c.dependsOn === col.key);
+            for (const depCol of dependentColumns) {
+                if (depCol.getOptions) {
+                    const options = await depCol.getOptions(tempRowData[col.key]);
+                    setDynamicOptions(prev => ({
+                        ...prev,
+                        [depCol.key]: Array.isArray(options) ? options : [],
+                    }));
+                }
             }
         }
 
-        const newData = [...tableData];
-        newData[rowIndex][key] = newValue;
-        setTableData(newData);
-
-        // 检查是否有列依赖当前列的值
-        const dependentColumns = columns.filter(c => c.dependsOn === key);
-        for (const depCol of dependentColumns) {
-            if (depCol.getOptions) {
-                const options = await depCol.getOptions(newValue);
-                setDynamicOptions(prev => ({
-                    ...prev,
-                    [depCol.key]: Array.isArray(options) ? options : [],
-                }));
-            }
-        }
-        if (autoSave) onSave(newData);
-
-        setEditingCell({ rowIndex: -1, colIndex: -1 });
+        if (autoSave) onSave([...tableData.slice(0, rowIndex), tempRowData, ...tableData.slice(rowIndex + 1)]);
+        setEditingRowIndex(-1);
+        setTempRowData(null);
         setCurrentOptions([]);
-    };
+    }, [tempRowData, columns, validation, tableData, autoSave, onSave]);
+
+    // 取消编辑
+    const handleCancelEdit = useCallback(() => {
+        setEditingRowIndex(-1);
+        setTempRowData(null);
+        setCurrentOptions([]);
+    }, []);
 
     // 新增行
-    const handleAddRow = () => {
+    const handleAddRow = useCallback(() => {
         const newRow: TData = { id: (tableData.length + 1).toString() } as TData;
         columns.forEach(col => {
             newRow[col.key] = col.defaultValue !== undefined ? col.defaultValue
@@ -219,152 +282,101 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                     : (col.type === 'select' || col.type === 'autocompleteSelect') ? ''
                         : '';
         });
-        const newData = [...tableData, newRow];
-        setTableData(newData);
-        onAdd?.(newData);
-    };
+        setTableData(prev => [...prev, newRow]);
+        onAdd?.([...tableData, newRow]);
+    }, [columns, tableData, onAdd]);
 
     // 删除行
-    const handleDeleteRow = (rowIndex: number) => {
-        const newData = tableData.filter((_, index) => index !== rowIndex);
-        setTableData(newData);
+    const handleDeleteRow = useCallback((rowIndex: number) => {
+        setTableData(prev => prev.filter((_, index) => index !== rowIndex));
         onDelete?.(rowIndex);
-        onSave(newData);
-    };
+        onSave(tableData);
+    }, [tableData, onDelete, onSave]);
 
     // 复制行
-    const handleCopyRow = (rowIndex: number) => {
-        const newData = [...tableData];
-        const copiedRow: TData = { ...newData[rowIndex] };
-        if (typeof rowKey === 'string') {
-            copiedRow[rowKey] = (tableData.length + 1).toString();
-        } else if (typeof rowKey === 'function') {
-            const newId = rowKey(newData[rowIndex]);
-            copiedRow[rowKey as any] = newId;
-        }
-        if (copyToEnd) {
-            newData.push(copiedRow);
-        } else {
-            newData.unshift(copiedRow);
-        }
-        setTableData(newData);
-        onCopy?.(newData, rowIndex);
-        if (autoSave) onSave(newData);
+    const handleCopyRow = useCallback((rowIndex: number) => {
+        setTableData(prev => {
+            const newData = [...prev];
+            const copiedRow: TData = { ...newData[rowIndex] };
+            if (typeof rowKey === 'string') {
+                copiedRow[rowKey] = (newData.length + 1).toString();
+            } else if (typeof rowKey === 'function') {
+                const newId = rowKey(newData[rowIndex]);
+                copiedRow[rowKey as any] = newId;
+            }
+            return copyToEnd ? [...newData, copiedRow] : [copiedRow, ...newData];
+        });
+        onCopy?.(tableData, rowIndex);
+        if (autoSave) onSave(tableData);
         message.success('行复制成功');
-    };
+    }, [tableData, rowKey, copyToEnd, onCopy, autoSave, onSave]);
 
     // 处理日期变化
-    const handleDateChange = (date: dayjs.Dayjs | null, dateString: string | string[]) => {
-        setTempValue(Array.isArray(dateString) ? dateString[0] : dateString);
-    };
+    const handleDateChange = useCallback((key: string) => (date: dayjs.Dayjs | null, dateString: string | string[]) => {
+        setTempRowData(prev => prev ? { ...prev, [key]: Array.isArray(dateString) ? dateString[0] : dateString } : prev);
+    }, []);
 
     // 表格列配置
-    const tableColumns: ColumnsType<TData> = [
-        ...columns.map((col, colIndex) => ({
+    const tableColumns: ColumnsType<TData> = useMemo(() => [
+        ...columns.map((col) => ({
             title: col.title,
             dataIndex: col.key,
             key: col.key,
             width: col.width,
             fixed: col.fixed,
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
-                const isEditing = editingCell.rowIndex === rowIndex && editingCell.colIndex === colIndex;
+                const isEditing = editingRowIndex === rowIndex && col.editable;
                 const currentColumnOptions = col.dependsOn ? dynamicOptions[col.key] || col.options || [] : col.options || [];
-
-                // 计算是否可编辑：列本身可编辑 且 (无依赖 或 依赖列值不为空)
                 const isEditable = col.editable && (!col.dependsOn || !isEmptyValue(record[col.dependsOn]));
 
-                if (col.type === 'select' || col.type === 'multipleSelect' || col.type === 'autocompleteSelect') {
-                    return isEditing ? (
-                        <Select
-                            mode={col.type === 'multipleSelect' ? 'multiple' : undefined}
-                            showSearch={col.type === 'autocompleteSelect'}
-                            filterOption={col.type === 'autocompleteSelect' ? false : true}
-                            onSearch={col.type === 'autocompleteSelect' && !col.dependsOn ? (searchValue) => {
-                                if (col.onSearch) {
-                                    setLoading(true);
-                                    col.onSearch(searchValue).then(opts => {
-                                        setCurrentOptions(opts);
-                                        setLoading(false);
-                                    }).catch(() => setLoading(false));
-                                }
-                            } : undefined}
-                            loading={loading}
-                            value={tempValue}
-                            onChange={handleSelectChange}
-                            onBlur={() => handleSave(rowIndex, colIndex)}
-                            style={{ width: '100%' }}
-                            autoFocus
-                            className="editable-input"
-                            disabled={!isEditable} // 新增：动态设置 Select 的 disabled 属性
-                        >
-                            {(col.type === 'autocompleteSelect' && !col.dependsOn ? currentOptions : currentColumnOptions).map(option => (
-                                <Select.Option key={option.value} value={option.value}>
-                                    {option.label}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    ) : (
-                        <span
-                            onClick={isEditable ? () => handleCellClick(rowIndex, colIndex, value) : undefined}
-                            className={isEditable ? 'editable-cell' : 'disabled-cell'}
-                        >
-                            {Array.isArray(value)
-                                ? value.map(val => currentColumnOptions.find(opt => opt.value === val)?.label || val).join(', ') || '--'
-                                : (currentColumnOptions.find(opt => opt.value === value)?.label || value) || '--'}
-                        </span>
-                    );
-                }
-                if (col.type === 'date') {
-                    return isEditing ? (
-                        <DatePicker
-                            format={col.format || 'YYYY-MM-DD'}
-                            value={tempValue ? dayjs(tempValue as string, col.format || 'YYYY-MM-DD') : null}
-                            onChange={handleDateChange}
-                            onBlur={() => handleSave(rowIndex, colIndex)}
-                            style={{ width: '100%' }}
-                            autoFocus
-                            className="editable-input"
-                            disabled={!isEditable} // 新增：动态设置 DatePicker 的 disabled 属性
-                        />
-                    ) : (
-                        <span
-                            onClick={isEditable ? () => handleCellClick(rowIndex, colIndex, value) : undefined}
-                            className={isEditable ? 'editable-cell' : 'disabled-cell'}
-                        >
-                            {value || '--'}
-                        </span>
-                    );
-                }
                 return isEditing ? (
-                    <Input
-                        type={col.type || 'text'}
-                        value={tempValue as string | number}
-                        onChange={handleInputChange}
-                        onBlur={() => handleSave(rowIndex, colIndex)}
-                        onPressEnter={() => handleSave(rowIndex, colIndex)}
-                        autoFocus
-                        className="editable-input"
-                        disabled={!isEditable} // 新增：动态设置 Input 的 disabled 属性
+                    <CellEditor
+                        col={col}
+                        value={tempRowData ? tempRowData[col.key] : value}
+                        currentOptions={col.type === 'autocompleteSelect' && !col.dependsOn ? currentOptions : currentColumnOptions}
+                        loading={loading}
+                        isEditable={isEditable}
+                        onChange={(newValue) => handleCellChange(col.key, newValue)}
+                        onSearch={col.onSearch ? (searchValue) => {
+                            setLoading(true);
+                            col.onSearch!(searchValue).then(opts => {
+                                setCurrentOptions(opts);
+                                setLoading(false);
+                            }).catch(() => setLoading(false));
+                        } : undefined}
+                        onBlur={() => {}}
+                        onDateChange={handleDateChange(col.key)}
                     />
                 ) : (
-                    <span
-                        onClick={isEditable ? () => handleCellClick(rowIndex, colIndex, value) : undefined}
-                        className={isEditable ? 'editable-cell' : 'disabled-cell'}
-                    >
-                        {Array.isArray(value) ? value.join(', ') : value || '--'}
+                    <span className="disabled-cell">
+                        {Array.isArray(value)
+                            ? value.map(val => currentColumnOptions.find(opt => opt.value === val)?.label || val).join(', ') || '--'
+                            : (currentColumnOptions.find(opt => opt.value === value)?.label || value) || '--'}
                     </span>
                 );
             },
         })),
-        ...(actions && actions.length > 0
-            ? [
-                {
-                    title: '操作',
-                    key: 'action',
-                    width: 150,
-                    fixed: 'right' as const,
-                    render: (_: any, __: TData, rowIndex: number) => (
-                        <div>
+        {
+            title: '操作',
+            key: 'action',
+            width: 200,
+            fixed: 'right' as const,
+            render: (_: any, __: TData, rowIndex: number) => (
+                <div>
+                    {editingRowIndex === rowIndex ? (
+                        <>
+                            <Button type="link" onClick={() => handleSaveRow(rowIndex)} style={{ marginRight: 8 }}>
+                                保存
+                            </Button>
+                            <Button type="link" onClick={handleCancelEdit}>
+                                取消
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button type="link" onClick={() => handleEditRow(rowIndex)} style={{ marginRight: 8 }}>
+                                编辑
+                            </Button>
                             {actions.includes('delete') && (
                                 <Popconfirm
                                     title="确认删除此行？"
@@ -380,12 +392,12 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                                     复制
                                 </Button>
                             )}
-                        </div>
-                    ),
-                },
-            ]
-            : []),
-    ];
+                        </>
+                    )}
+                </div>
+            ),
+        },
+    ], [columns, editingRowIndex, dynamicOptions, currentOptions, loading, tempRowData, actions, handleCellChange, handleSaveRow, handleCancelEdit, handleEditRow, handleDeleteRow, handleCopyRow, isEmptyValue]);
 
     return (
         <div className="editable-table" style={{ width: width || '100%', overflowX: width ? 'auto' : 'visible' }}>

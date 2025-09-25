@@ -82,6 +82,7 @@ const TableTest: React.FC = () => {
         );
     };
 
+
     const categoryColumns: Column[] = [
         {key: 'name', title: '姓名', type: 'text', required: true, editable: true, defaultValue: 'test'},
         {
@@ -194,36 +195,36 @@ const TableTest: React.FC = () => {
     ];
     return (
         <div style={{ padding: 16 }}>
-            <Form
-                form={form}
-                onFinish={onFinish}
-                initialValues={{ conditions: [{ type: '', aggregation: '' }] }}
-                layout="horizontal"
-            >
-                <DynamicSelectList
-                    form={form}
-                    label="选择计算条件"
-                    name="conditions"
-                    selectConfigs={sumSelectConfigs}
-                    addButtonText="增加条件"
-                />
-                <DynamicSelectList
-                    form={form}
-                    label="选择计算指标"
-                    name="metrics"
-                    selectConfigs={metricSelectConfigs}
-                    addButtonText="增加指标"
-                />
-                <Form.Item>
-                    {/*如果按钮的 htmlType 不是 "submit"（例如 "button"），点击按钮不会触发表单提交或 onFinish。你需要手动调用 form.submit() 来触发提交。*/}
-                    {/*验证字段：Form 自动调用内部的验证逻辑（基于 Form.Item 的 rules 属性），检查所有字段是否符合验证规则。*/}
-                    {/*收集表单数据：如果验证通过，Form 会收集所有字段的值，生成一个包含表单数据的对象。*/}
-                    {/*触发 onFinish：Form 组件将收集到的数据作为参数传递给 onFinish 函数（如果提供了该属性）。*/}
-                    <Button type="primary" htmlType="submit">
-                        筛选
-                    </Button>
-                </Form.Item>
-            </Form>
+            {/*<Form*/}
+            {/*    form={form}*/}
+            {/*    onFinish={onFinish}*/}
+            {/*    initialValues={{ conditions: [{ type: '', aggregation: '' }] }}*/}
+            {/*    layout="horizontal"*/}
+            {/*>*/}
+            {/*    <DynamicSelectList*/}
+            {/*        form={form}*/}
+            {/*        label="选择计算条件"*/}
+            {/*        name="conditions"*/}
+            {/*        selectConfigs={sumSelectConfigs}*/}
+            {/*        addButtonText="增加条件"*/}
+            {/*    />*/}
+            {/*    <DynamicSelectList*/}
+            {/*        form={form}*/}
+            {/*        label="选择计算指标"*/}
+            {/*        name="metrics"*/}
+            {/*        selectConfigs={metricSelectConfigs}*/}
+            {/*        addButtonText="增加指标"*/}
+            {/*    />*/}
+            {/*    <Form.Item>*/}
+            {/*        /!*如果按钮的 htmlType 不是 "submit"（例如 "button"），点击按钮不会触发表单提交或 onFinish。你需要手动调用 form.submit() 来触发提交。*!/*/}
+            {/*        /!*验证字段：Form 自动调用内部的验证逻辑（基于 Form.Item 的 rules 属性），检查所有字段是否符合验证规则。*!/*/}
+            {/*        /!*收集表单数据：如果验证通过，Form 会收集所有字段的值，生成一个包含表单数据的对象。*!/*/}
+            {/*        /!*触发 onFinish：Form 组件将收集到的数据作为参数传递给 onFinish 函数（如果提供了该属性）。*!/*/}
+            {/*        <Button type="primary" htmlType="submit">*/}
+            {/*            筛选*/}
+            {/*        </Button>*/}
+            {/*    </Form.Item>*/}
+            {/*</Form>*/}
             {/*<EditProTable<DataType>*/}
             {/*    columns={columns}*/}
             {/*    rowKey={'id'}*/}
@@ -243,11 +244,11 @@ const TableTest: React.FC = () => {
                 data={data}
                 onSave={handleSave}
                 onDelete={handleDelete}
-                onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)} // 可选回调
+                onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)}
                 onAdd={handleAdd}
                 width={700}
-                actions={['delete', 'copy']} // 显示删除和复制
-                copyToEnd={true} // 复制到末尾
+                actions={['delete', 'copy']}
+                copyToEnd={true}
                 validation={{ name: { min: 2 } }}
             />
         </div>

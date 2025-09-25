@@ -145,6 +145,18 @@ const LineChart = () => {
             }
         };
 
+        // 连接关闭回调
+        wsRef.current.onclose = () => {
+            console.log('WebSocket 连接已关闭');
+            // 断线重连逻辑
+            setTimeout(() => {
+                console.log('尝试重新连接...');
+                // 重新初始化连接（利用ref重新赋值触发effect）
+                wsRef.current = new WebSocket('ws://localhost:8080');
+            }, 3000);
+        };
+
+
         // 错误处理
         wsRef.current.onerror = (error) => {
             console.error('LineChart WebSocket 错误:', error);
