@@ -247,6 +247,7 @@ const TableTest: React.FC = () => {
                 onCopy={(copiedData, originalIndex) => console.log('复制了第', originalIndex, '行:', copiedData)}
                 onAdd={handleAdd}
                 width={700}
+                height={400}
                 actions={['delete', 'copy']}
                 copyToEnd={true}
                 validation={{ name: { min: 2 } }}

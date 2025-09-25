@@ -53,6 +53,7 @@ export interface EditableTableProps<TData extends Record<string, string | number
     autoSave?: boolean;
     validation?: Record<string, ValidationRule>;
     width?: number | string;
+    height?: number | string;
 }
 
 // 单元格编辑组件
@@ -136,6 +137,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                                                                                                            autoSave = true,
                                                                                                            validation = {},
                                                                                                            width,
+    height
                                                                                                        }: EditableTableProps<TData>): JSX.Element => {
     const [tableData, setTableData] = useState<TData[]>(data);
     const [editingRowIndex, setEditingRowIndex] = useState<number>(-1);
@@ -147,6 +149,9 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
     // 同步外部 data 到内部 state
     useEffect(() => {
         setTableData(data);
+        // 如果正在编辑，退出编辑模式以避免数据不一致
+        setEditingRowIndex(-1);
+        setTempRowData(null);
     }, [data]);
 
     // 辅助函数：判断值是否为空
@@ -160,7 +165,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
     // 开始编辑一行
     const handleEditRow = useCallback((rowIndex: number) => {
         setEditingRowIndex(rowIndex);
-        setTempRowData({ ...tableData[rowIndex] }); // 复制当前行数据作为临时数据
+        setTempRowData({ ...tableData[rowIndex] });
         // 加载 autocompleteSelect 的初始选项
         columns.forEach(col => {
             if (col.type === 'autocompleteSelect' && col.onSearch) {
@@ -174,9 +179,22 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
     }, [columns, tableData]);
 
     // 处理单元格值变化
-    const handleCellChange = useCallback((key: string, value: string | number | (string | number)[]) => {
+    const handleCellChange = useCallback(async (key: string, value: string | number | (string | number)[]) => {
         setTempRowData(prev => prev ? { ...prev, [key]: value } : prev);
-    }, []);
+        // 如果更改的是依赖列，立即加载相关列的动态选项
+        const dependentColumns = columns.filter(c => c.dependsOn === key);
+        for (const depCol of dependentColumns) {
+            if (depCol.getOptions && !isEmptyValue(value)) {
+                setLoading(true);
+                const options = await depCol.getOptions(value);
+                setDynamicOptions(prev => ({
+                    ...prev,
+                    [depCol.key]: Array.isArray(options) ? options : [],
+                }));
+                setLoading(false);
+            }
+        }
+    }, [columns, isEmptyValue]);
 
     // 处理保存行
     const handleSaveRow = useCallback(async (rowIndex: number) => {
@@ -246,11 +264,11 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
             return newData;
         });
 
-        // 处理依赖列
+        // 处理依赖列（确保保存后动态选项更新）
         for (const col of columns) {
             const dependentColumns = columns.filter(c => c.dependsOn === col.key);
             for (const depCol of dependentColumns) {
-                if (depCol.getOptions) {
+                if (depCol.getOptions && !isEmptyValue(tempRowData[col.key])) {
                     const options = await depCol.getOptions(tempRowData[col.key]);
                     setDynamicOptions(prev => ({
                         ...prev,
@@ -264,7 +282,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
         setEditingRowIndex(-1);
         setTempRowData(null);
         setCurrentOptions([]);
-    }, [tempRowData, columns, validation, tableData, autoSave, onSave]);
+    }, [tempRowData, columns, validation, tableData, autoSave, onSave, isEmptyValue]);
 
     // 取消编辑
     const handleCancelEdit = useCallback(() => {
@@ -327,7 +345,8 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
             render: (value: string | number | (string | number)[], record: TData, rowIndex: number) => {
                 const isEditing = editingRowIndex === rowIndex && col.editable;
                 const currentColumnOptions = col.dependsOn ? dynamicOptions[col.key] || col.options || [] : col.options || [];
-                const isEditable = col.editable && (!col.dependsOn || !isEmptyValue(record[col.dependsOn]));
+                // 在编辑模式下，基于 tempRowData 判断依赖列值
+                const isEditable = col.editable && (!col.dependsOn || (isEditing && tempRowData ? !isEmptyValue(tempRowData[col.dependsOn]) : !isEmptyValue(record[col.dependsOn])));
 
                 return isEditing ? (
                     <CellEditor
@@ -406,7 +425,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                 dataSource={tableData}
                 rowKey={rowKey}
                 pagination={{ pageSize: 10 }}
-                scroll={{ x: width || true }}
+                scroll={{ x: width || true, y: height || true }}
             />
             {enableAdd && (
                 <div className="table-actions">
