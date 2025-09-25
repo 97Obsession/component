@@ -53,7 +53,6 @@ export interface EditableTableProps<TData extends Record<string, string | number
     autoSave?: boolean;
     validation?: Record<string, ValidationRule>;
     width?: number | string;
-    height?: number | string;
 }
 
 // 单元格编辑组件
@@ -137,7 +136,6 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                                                                                                            autoSave = true,
                                                                                                            validation = {},
                                                                                                            width,
-    height
                                                                                                        }: EditableTableProps<TData>): JSX.Element => {
     const [tableData, setTableData] = useState<TData[]>(data);
     const [editingRowIndex, setEditingRowIndex] = useState<number>(-1);
@@ -311,7 +309,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
         onSave(tableData);
     }, [tableData, onDelete, onSave]);
 
-    // 复制行
+    // 复制行并自动进入编辑状态
     const handleCopyRow = useCallback((rowIndex: number) => {
         setTableData(prev => {
             const newData = [...prev];
@@ -322,12 +320,37 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                 const newId = rowKey(newData[rowIndex]);
                 copiedRow[rowKey as any] = newId;
             }
-            return copyToEnd ? [...newData, copiedRow] : [copiedRow, ...newData];
+            const newRowIndex = copyToEnd ? newData.length : 0;
+            const updatedData = copyToEnd ? [...newData, copiedRow] : [copiedRow, ...newData];
+            // 自动进入新行的编辑模式
+            setEditingRowIndex(newRowIndex);
+            setTempRowData({ ...copiedRow });
+            // 加载新行的动态选项（如 subCategory）
+            columns.forEach(col => {
+                if (col.type === 'autocompleteSelect' && col.onSearch) {
+                    setLoading(true);
+                    col.onSearch('').then(opts => {
+                        setCurrentOptions(opts);
+                        setLoading(false);
+                    }).catch(() => setLoading(false));
+                }
+                if (col.dependsOn && col.getOptions && !isEmptyValue(copiedRow[col.dependsOn])) {
+                    setLoading(true);
+                    col.getOptions(copiedRow[col.dependsOn]).then(options => {
+                        setDynamicOptions(prev => ({
+                            ...prev,
+                            [col.key]: Array.isArray(options) ? options : [],
+                        }));
+                        setLoading(false);
+                    }).catch(() => setLoading(false));
+                }
+            });
+            return updatedData;
         });
         onCopy?.(tableData, rowIndex);
         if (autoSave) onSave(tableData);
         message.success('行复制成功');
-    }, [tableData, rowKey, copyToEnd, onCopy, autoSave, onSave]);
+    }, [tableData, rowKey, copyToEnd, onCopy, autoSave, onSave, columns, isEmptyValue]);
 
     // 处理日期变化
     const handleDateChange = useCallback((key: string) => (date: dayjs.Dayjs | null, dateString: string | string[]) => {
@@ -425,7 +448,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                 dataSource={tableData}
                 rowKey={rowKey}
                 pagination={{ pageSize: 10 }}
-                scroll={{ x: width || true, y: height || true }}
+                scroll={{ x: width || true }}
             />
             {enableAdd && (
                 <div className="table-actions">
