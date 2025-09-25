@@ -143,6 +143,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
     const [currentOptions, setCurrentOptions] = useState<SelectOption[]>([]);
     const [loading, setLoading] = useState(false);
     const [dynamicOptions, setDynamicOptions] = useState<Record<string, SelectOption[]>>({});
+    const [lastCopiedRowIndex, setLastCopiedRowIndex] = useState<number | null>(null);
 
     // 同步外部 data 到内部 state
     useEffect(() => {
@@ -150,6 +151,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
         // 如果正在编辑，退出编辑模式以避免数据不一致
         setEditingRowIndex(-1);
         setTempRowData(null);
+        setLastCopiedRowIndex(null);
     }, [data]);
 
     // 辅助函数：判断值是否为空
@@ -279,15 +281,25 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
         if (autoSave) onSave([...tableData.slice(0, rowIndex), tempRowData, ...tableData.slice(rowIndex + 1)]);
         setEditingRowIndex(-1);
         setTempRowData(null);
+        setLastCopiedRowIndex(null);
         setCurrentOptions([]);
     }, [tempRowData, columns, validation, tableData, autoSave, onSave, isEmptyValue]);
 
     // 取消编辑
     const handleCancelEdit = useCallback(() => {
+        if (lastCopiedRowIndex !== null) {
+            // 如果是复制后取消，移除新行
+            setTableData(prev => {
+                const newData = prev.filter((_, index) => index !== lastCopiedRowIndex);
+                if (autoSave) onSave(newData);
+                return newData;
+            });
+        }
         setEditingRowIndex(-1);
         setTempRowData(null);
+        setLastCopiedRowIndex(null);
         setCurrentOptions([]);
-    }, []);
+    }, [autoSave, onSave, lastCopiedRowIndex]);
 
     // 新增行
     const handleAddRow = useCallback(() => {
@@ -325,6 +337,7 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
             // 自动进入新行的编辑模式
             setEditingRowIndex(newRowIndex);
             setTempRowData({ ...copiedRow });
+            setLastCopiedRowIndex(newRowIndex);
             // 加载新行的动态选项（如 subCategory）
             columns.forEach(col => {
                 if (col.type === 'autocompleteSelect' && col.onSearch) {
@@ -345,10 +358,11 @@ const EditableTable = React.memo(<TData extends Record<string, string | number |
                     }).catch(() => setLoading(false));
                 }
             });
+            // 在复制后立即调用 onSave，确保父组件收到更新
+            if (autoSave) onSave(updatedData);
             return updatedData;
         });
         onCopy?.(tableData, rowIndex);
-        if (autoSave) onSave(tableData);
         message.success('行复制成功');
     }, [tableData, rowKey, copyToEnd, onCopy, autoSave, onSave, columns, isEmptyValue]);
 
