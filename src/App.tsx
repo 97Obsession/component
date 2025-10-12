@@ -1,7 +1,7 @@
 import React, {Suspense, useMemo, useState} from 'react';
 import { Layout, Menu, Spin } from 'antd';
 import { Link, RouteObject, useRoutes } from 'react-router-dom';
-import EditProTable, {Column, EditableTableProps} from "./pages/Table/EditProTable";
+import EditProTable, {Column, EditableTableProps} from "./pages/Table/EditableProTable/EditProTable";
 import TableTest from "./pages/Table/TableTest";
 // import EditProTable, {Column, EditableTableProps} from "./pages/Table/EditProTable";
 const { Header, Content } = Layout;

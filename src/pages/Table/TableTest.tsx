@@ -1,6 +1,6 @@
 // TableTest.tsx
 import React, {useEffect, useMemo, useState} from 'react';
-import EditProTable, { Column, EditableTableProps, SelectOption } from './EditProTable';
+import EditProTable, { Column, EditableTableProps, SelectOption } from './EditableProTable/EditProTable';
 import {Button, Form, Select, Space} from "antd";
 import DynamicSelectList from "./DynamicSelectList";
 import axios from "axios";
