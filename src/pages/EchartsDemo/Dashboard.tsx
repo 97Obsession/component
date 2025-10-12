@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {Row, Col, Carousel, Table} from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import GuangdongMap from './GuangdongMap';
+import {io, Socket} from "socket.io-client";
 
 // 类型定义
 interface CityData {
@@ -83,17 +84,34 @@ const CarouselTable: React.FC<{ data: CityData[] }> = ({ data }) => {
 const Dashboard: React.FC = () => {
     const [tableData, setTableData] = useState<CityData[]>(mockCityData);
 
-    // 预留接口替换
-    // useEffect(() => {
-    //   fetch('/api/cities').then(res => res.json()).then(setTableData);
-    // }, []);
+    // 新增：Socket.io 连接和订阅
+    useEffect(() => {
+        const socket: Socket = io('http://localhost:8080');  // 连接服务器（调整 URL 如需）
 
-    // 预留 WebSocket
-    // useEffect(() => {
-    //   const ws = new WebSocket('ws://example.com');
-    //   ws.onmessage = (e) => setTableData(prev => [...prev, ...JSON.parse(e.data)]);
-    //   return () => ws.close();
-    // }, []);
+        socket.on('connect', () => {
+            console.log('Socket.io 连接成功');
+            // 订阅表格频道
+            socket.emit('subscribe', ['cities-table-channel']);
+        });
+
+        // 接收更新消息
+        socket.on('update', (payload) => {
+            if (payload.channel === 'cities-table-channel') {
+                console.log('收到表格数据更新:', payload.data);
+                setTableData(payload.data);  // 全量更新表格数据
+            }
+        });
+
+        // 错误处理
+        socket.on('connect_error', (error) => {
+            console.error('Socket.io 连接错误:', error);
+        });
+
+        // Cleanup：组件卸载时断开
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
 
     return (
         <div style={{ padding: '20px', background: '#f0f2f5' }}>
