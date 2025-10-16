@@ -3,6 +3,7 @@ import { Layout, Menu, Spin } from 'antd';
 import { Link, RouteObject, useRoutes } from 'react-router-dom';
 import EditProTable, {Column, EditableTableProps} from "./pages/Table/EditableProTable/EditProTable";
 import TableTest from "./pages/Table/TableTest";
+import EditableEdit from "./pages/EchartsDemo/EditableEdit";
 // import EditProTable, {Column, EditableTableProps} from "./pages/Table/EditProTable";
 const { Header, Content } = Layout;
 
@@ -22,13 +23,14 @@ const App = () => {
     { path: '/retable', element: <ReTable /> },
     { path: '/edit-proTable', element: <TableTest />},
     { path: '/selector', element: <CommonSelector options={[]} defaultValue={undefined} onChange={undefined} /> },
+    { path: '/protable-edit', element: <EditableEdit /> },
     { path: '*', element: <NotFound /> },
   ]), []);
 
   const element = useRoutes(routes);
 
   return (
-      <div style={{width: '100vw', height: '100vh', overflow: 'hidden', padding: '2vmin'}}>
+      <div style={{width: '100vw', height: '100vh', padding: '2vmin'}}>
 
           <Header>
               <Menu theme="dark" mode="horizontal" selectable={false} items={[

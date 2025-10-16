@@ -1,9 +1,10 @@
 // Dashboard.tsx：主组件
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {Row, Col, Carousel, Table} from 'antd';
 import { ColumnsType } from 'antd/es/table';
-import GuangdongMap from './GuangdongMap';
+import GuangdongMap, {initialMapData} from './GuangdongMap';
 import {io, Socket} from "socket.io-client";
+import EChartsWrapper from "../EChartsWrapper";
 
 // 类型定义
 interface CityData {
@@ -83,22 +84,54 @@ const CarouselTable: React.FC<{ data: CityData[] }> = ({ data }) => {
 
 const Dashboard: React.FC = () => {
     const [tableData, setTableData] = useState<CityData[]>(mockCityData);
+    const[lineOptions, setLineOptions] = useState<any>( {
+        xAxis: {
+            type: 'category',
+            data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] // X 轴类别数据
+        },
+        yAxis: {
+            type: 'value' // Y 轴数值类型
+        },
+        series: [
+            {
+                data: [10,20,30,40,50,60,70],// 使用状态中的数据
+                type: 'line', // 图表类型：折线图
+                smooth: true // 启用平滑曲线
+            }
+        ]
+    });
+    const [mapData, setMapData] = useState(initialMapData);  // 新增：状态管理地图数据
+    // 新增：Socket ref（持久化，传给子）
+    const socketRef = useRef<Socket | null>(null);
 
     // 新增：Socket.io 连接和订阅
     useEffect(() => {
         const socket: Socket = io('http://localhost:8080');  // 连接服务器（调整 URL 如需）
-
+        socketRef.current = socket;
         socket.on('connect', () => {
             console.log('Socket.io 连接成功');
             // 订阅表格频道
-            socket.emit('subscribe', ['cities-table-channel']);
+            socket.emit('subscribe', ['cities-table-channel', 'map-channel', 'district-channel']);
         });
 
-        // 接收更新消息
+        // 接收更新（扩展：分发到状态）
         socket.on('update', (payload) => {
-            if (payload.channel === 'cities-table-channel') {
-                console.log('收到表格数据更新:', payload.data);
-                setTableData(payload.data);  // 全量更新表格数据
+            switch (payload.channel) {
+                case 'cities-table-channel':
+                    console.log('收到表格数据更新:', payload.data);
+                    setTableData(payload.data);
+                    break;
+                case 'map-channel':
+                    console.log('收到地图数据更新:', payload.data);
+                    setMapData(payload.data);
+                    // 可传给子 via props/context，如果子需
+                    break;
+                case 'district-channel':
+                    console.log('收到区级数据更新:', payload.data);
+                    setMapData(payload.data);
+                    break;
+                default:
+                    console.log('未知频道:', payload.channel);
             }
         });
 
@@ -110,6 +143,7 @@ const Dashboard: React.FC = () => {
         // Cleanup：组件卸载时断开
         return () => {
             socket.disconnect();
+            socketRef.current = null;
         };
     }, []);
 
@@ -122,7 +156,13 @@ const Dashboard: React.FC = () => {
                 </Col>
                 <Col span={12}>
                     <h3>广东省地图可视化</h3>
-                    <GuangdongMap />
+                    <GuangdongMap socket={socketRef.current} mapData={mapData} />
+                </Col>
+            </Row>
+            <Row>
+                <Col span={12}>
+                    <h3>折线图</h3>
+                    <EChartsWrapper option={lineOptions} />;
                 </Col>
             </Row>
         </div>

@@ -246,24 +246,26 @@ const PieChart = () => {
  */
 function Home() {
     return (
-        <div style={{width: '100vw', height: '100vh', overflow: 'hidden', padding: '2vmin', boxSizing: 'border-box'}}>
-            {/*<div style={{*/}
-            {/*    display: 'flex',*/}
-            {/*    flexDirection: 'row',*/}
-            {/*    width: '100%',*/}
-            {/*    height: '60vh',*/}
-            {/*    justifyContent: 'space-between',*/}
-            {/*    // flexShrink: 1,*/}
-            {/*    // flexGrow: 1,*/}
-            {/*}}>*/}
-            {/*    /!*echarts图表依赖于父容器的宽度，主要是因为为了做宽度变化时，图表的扩张*!/*/}
-            {/*    <LineChart/>*/}
-            {/*    <BarChart/>*/}
-            {/*    <PieChart/>*/}
-
-            {/*</div>*/}
+        <div>
             <Dashboard />
         </div>
+        // <div style={{width: '100vw', height: '100vh', overflow: 'hidden', padding: '2vmin', boxSizing: 'border-box'}}>
+        //     <div style={{
+        //         display: 'flex',
+        //         flexDirection: 'row',
+        //         width: '100%',
+        //         height: '60vh',
+        //         justifyContent: 'space-between',
+        //         // flexShrink: 1,
+        //         // flexGrow: 1,
+        //     }}>
+        //         {/*echarts图表依赖于父容器的宽度，主要是因为为了做宽度变化时，图表的扩张*/}
+        //         <LineChart/>
+        //         <BarChart/>
+        //         <PieChart/>
+        //     </div>
+        //     <div style={{fontSize: '1.1vw'}}>测试</div>
+        // </div>
     );
 }
 
